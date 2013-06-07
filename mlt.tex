@@ -1,0 +1,140 @@
+\documentclass{article}
+\usepackage{mathpartir}
+
+% Metavars
+\newcommand\term{t}
+\newcommand\ty{\tau}
+\newcommand\tyenv{\Gamma}
+
+% Constructions 
+
+% Term
+\newcommand\var{x}
+\newcommand\app[2]{#1\,#2}
+\newcommand\lam[2]{\lambda #1. #2}
+
+% Type
+\newcommand\tyconst{\iota}
+\newcommand\tyvar{X}
+\newcommand\tykind{*}
+\newcommand\tyarrow[2]{#1 \rightarrow #2}
+
+% Binding
+\newcommand\binding[2]{(#1 : #2)}
+
+% Typing environment
+\newcommand\tyenvnil{\bullet}
+\newcommand\tyenvcons[3]{#1; \binding{#2}{#3}}
+
+% Jugements
+\newcommand\tycheck[3]{#1 \vdash #2 : #3}
+\newcommand\tyenvmem[2]{#1 \in #2}
+
+% Keyword
+\newcommand\kw[1]{\textrm{ #1 }}
+\begin{document}
+
+% Pattern
+\newcommand\pator{\;|\;}
+
+\begin{mathpar}
+
+\infer{
+  \tyenvmem{\binding\var\ty}\tyenv
+}{
+  \tycheck\tyenv\var\ty
+}
+
+\infer{
+  \tycheck{\tyenvcons\tyenv\var{\ty_1}}{\term}{\ty_2}
+}{
+  \tycheck\tyenv{\lam{\binding\var{\ty_1}}{\term}}{\tyarrow{\ty_1}{\ty_2}}
+}
+
+\infer{
+  \tycheck{\tyenv}{\term_1}{\tyarrow{\ty_1}{\ty_2}} \\
+  \tycheck{\tyenv}{\term_2}{\ty_1}
+}{
+  \tycheck{\tyenv}{\term_1 \term_2}{\ty_2}
+}
+
+\infer{
+  \tycheck{\tyenv}{\term_1}{\ty_1} \\
+  \tycheck{\tyenvcons{\tyenv}{\var}{\ty_1}}{\term_2}{\ty_2}
+}{
+  \tycheck{\tyenv}{\kw{let} \var = \term_1 \kw{in} \term_2}{\ty_2}
+}
+
+\infer{
+  \forall i.\; \tycheck{\tyenvcons{\tyenv}{\forall j.\, \var_j}{\ty_j}}{\term_i}{\ty_i} \\
+  \tycheck{\tyenvcons{\tyenv}{\forall j.\, \var_j}{\ty_j}}{\term}{\ty}
+}{
+  \tycheck{\tyenv}{\kw{letrec} (\var_i : \ty_i = \term_i) \kw{in} \term}{\ty}
+}
+
+\infer{
+  \tycheck{\tyenvcons{\tyenv}{\tyvar}{\tykind}}{\term}{\ty}
+}{
+  \tycheck{\tyenv}{\Lambda \tyvar . \term }{\forall \tyvar.\, \ty}
+}
+
+\infer{
+  \tycheck{\tyenv}{\term}{\forall \tyvar.\, \ty_1}
+}{
+  \tycheck{\tyenv}{\term \, \ty_2}{\ty_1 \{X \leftarrow \ty_2\}}
+}
+
+\infer{
+  \tycheck{\tyenv}{\term}{[ \binding{0}{\vec{\tyvar}. \vec{\phi}} ; \theta]} \\
+  \tycheck{\Phi(\theta, \tyenv)}{\term_1}{\ty} \\
+  \tycheck{\Phi([ \binding{0}{\vec{X}. \vec{\phi}} ], \tyenv)}{\term_2}{\ty}
+}{
+  \tycheck{\tyenv}{\kw{if} \term \kw{then} \term_1 \kw{else} \term_2}{\ty}
+}
+
+\infer{
+  \tycheck{\tyenv}{\term}{[]} \\
+}{
+  \tycheck{\tyenv}{\kw{match} \term \kw{with} \emptyset}{\ty}
+}
+
+\infer{
+  \tycheck{\tyenv}{\term}{[\ldots]} \\
+  \tycheck{\tyenv}{\term_1}{\ty} \\
+}{
+  \tycheck{\tyenv}{\kw{match} \term \kw{with} \_ \rightarrow \term_1}{\ty}
+}
+
+\infer{
+  \tycheck{\tyenv}{\term}{[\binding{n}{\_}; \theta]} \\
+  \tycheck{\tyenvcons{\tyenv}{\var}{[\theta]}}{\kw{match} \var \kw{with} B \pator \_ \rightarrow \term_1}{\ty} \\
+}{
+  \tycheck{\tyenv}{\kw{match} \term \kw{with} B \pator \_ \rightarrow \term_1}{\ty}
+}
+
+\infer{
+  \tycheck{\tyenv}{\term_1}{[\binding{n}{\vec{\tyvar_0}. \vec{\phi_0}. \vec{\ty_0}}; \theta]} \\
+  \tycheck{\Phi([ \binding{n}{\vec{\tyvar_0}. \vec{\phi_0}. \vec{\ty_0}} ], \tyenv)}{\term_2}{\ty} \\
+  \tycheck{\tyenvcons{\tyenv}{\var}{[\theta]}}{\kw{match} \var \kw{with} B}{\ty}
+}{
+  \tycheck{\tyenv}{\kw{match} \term_1 \kw{with} n \rightarrow \term_2 \pator B}{\ty} \\
+}
+
+\infer{
+  \tycheck{\tyenv}{\term_1}{[\binding{n}{\vec{\tyvar_0}. \vec{\phi_0}. \vec{\ty_0}}; \theta]} \\
+  \tycheck{\Phi([ \binding{n}{\vec{\tyvar_0}. \vec{\phi_0}. \vec{\ty_0}} ], \tyenv)}{\term_2}{\ty} \\
+  \tycheck{\tyenvcons{\tyenv}{\var}{[\theta]}}{\kw{match} \var \kw{with} B}{\ty}
+}{
+  \tycheck{\tyenv}{\kw{match} \term_1 \kw{with} n \rightarrow \term_2 \pator B}{\ty} \\
+}
+
+\infer{
+  \tycheck{\tyenv}{\term_1}{[\theta]} \\
+  \tycheck{\tyenvcons{\tyenvcons{\tyenv}{\var}{\tyvar}}{\tyvar}{\mathcal{P}(\theta)}}{\term_2}{\ty}
+}{
+  \tycheck{\tyenv}{\kw{unpack} \term_1 \kw{as} \binding{\var}{\tyvar} \kw{in} \term_2}{\ty} \\
+}
+
+\end{mathpar}
+
+\end{document}
