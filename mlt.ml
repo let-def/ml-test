@@ -21,57 +21,130 @@ module IdentMap = Map.Make (Ident)
 type tyvar = Ident.t
 type tmvar = Ident.t 
 type tag = int
-type dtag = int
 
 type expr =
   | Tm_var of tmvar
   | Tm_const of const
   | Tm_app of expr * expr
   | Tm_fun of (tmvar * ty) * expr
-  | Tm_let of tmvar * expr * expr
   | Tm_letrec of ((tmvar * ty) * expr) list * expr
-  | Tm_if of expr * expr * expr
-  | Tm_match of expr * branch list * ty
+  | Tm_match of expr * branches * ty
   | Tm_unpack of expr * tmvar * tyvar * expr
   | Tm_prim of prim * expr list
   | Tm_tyabs of tyvar * expr
   | Tm_tyapp of expr * ty
 
-and branch = tag * expr
+and branches =
+  | Br_tag of tag * expr * branches
+  | Br_any of expr
+  | Br_end
 
 and prim =
+  | Pr_tagof
   | Pr_makeblock of int * ty
   | Pr_field of int
   | Pr_eq
   | Pr_lt
+  | Pr_isint
 
 and const =
   | Tm_int of int
-  | Tm_float of float
   | Tm_string of string
 
 and ty =
   | Ty_var of tyvar
-  | Ty_con of tyvar * ty list
+  | Ty_con of ty_con * ty list
   | Ty_const of ty_const
   | Ty_abs of tyvar * ty
   | Ty_arrow of ty * ty
-  | Ty_tagged of tagset
-  | Ty_proxy of tyvar * dtag
+  | Ty_block of tag * ty list
+  | Ty_tagged of tmvar * ty * ty_con
+  | Ty_tag of tmvar * ty * ty_con
 
 and ty_const =
   | Ty_const_int
   | Ty_const_float
   | Ty_const_string
 
-and tagset = 
-  | Tag_cons of tag * tyvar list * constr list * ty list * tagset
-  | Tag_open
-  | Tag_close
+and ty_con = 
+  { ty_name : Ident.t ; ty_vars : Ident.t list ; ty_body : ty }
 
 and constr = 
-  | Cstr_equal of tyvar * ty
-  | Cstr_subst of tyvar * ty
+  | Cstr_conj of constr * constr
+  | Cstr_equal of ty * ty
+  | Cstr_tagmem of Ident.t * tagset
+  | Cstr_top
+
+let rec subst_type s = function
+  | Ty_var v as t ->
+    (try IdentMap.find v s
+     with Not_found -> t)
+  | Ty_con (v,tys) -> 
+    (if IdentMap.mem v s then failwith "trying to substitute type constructor");
+    Ty_con (v, List.map (subst_type s) tys)
+  | Ty_const _ as t -> t
+  | Ty_abs (v,ty) -> 
+    (if IdentMap.mem v s then failwith "trying to substitute free variable");
+    subst_type s ty
+  | Ty_arrow (targ,tres) -> Ty_arrow (subst_type s targ, subst_type s tres)
+  | Ty_tagged ts -> Ty_tagged (subst_tagset s ts)
+  | Ty_proxy (v,_) as t ->
+    (if IdentMap.mem v s then failwith "trying to substitute proxy variable");
+    t
+
+and subst_tagset s = function
+  | Tag_close | Tag_open as t -> t
+  | Tag_cons (tg,tv,cstr,tys,ts') ->
+    let assert_nosubst v =
+      if IdentMap.mem v s then failwith "trying to substitute tagset variable"
+    in
+    List.iter assert_nosubst tv;
+    Tag_cons (tg, tv, List.map (subst_cstr s) cstr, 
+              List.map (subst_type s) tys, subst_tagset s ts')
+
+and subst_cstr s = function
+  | Cstr_subst (v,t) -> 
+    if IdentMap.mem v s then failwith "trying to substitute constraint variable";
+    Cstr_subst (v, subst_type s t)
+  | Cstr_equal (v,t) -> 
+    if IdentMap.mem v s then failwith "trying to substitute constraint variable";
+    Cstr_equal (v, subst_type s t)
+
+
+module Eval =
+struct
+  exception Value
+  (*let subst m = function
+    | Tm_var ->
+    | Tm_const ->
+    | Tm_fun ->
+    | Tm_app ->
+    | Tm_letrec ->
+    | Tm_match ->
+    | Tm_unpack ->
+    | Tm_prim ->
+    | Tm_tyabs ->
+    | Tm_tyapp ->
+
+  let is_value = function
+    | Tm_var _ | Tm_fun _ -> true
+    | _ -> false
+  
+  let eval_step = function
+    | Tm_var v -> 
+      store, (try IdentMap.find v with Not_found ->
+              failwith "unbound variable")
+    | Tm_const _ | Tm_fun _ -> raise Value
+    | Tm_app (e1, e2) when is_value e2 -> eval ~store
+    | Tm_letrec of ((tmvar * ty) * expr) list * expr
+    | Tm_match of expr * branches * ty
+    | Tm_unpack of expr * tmvar * tyvar * expr
+    | Tm_prim of prim * expr list
+    | Tm_tyabs of tyvar * expr
+    | Tm_tyapp of expr * ty*)
+end
+
+(* TYPER *)
 
 type binding =
   | Tmvar of ty (* Type of term variable *)

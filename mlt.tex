@@ -1,10 +1,15 @@
 \documentclass{article}
 \usepackage{mathpartir}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{multicol}
+\usepackage[utf8x]{inputenc}
 
 % Metavars
 \newcommand\term{t}
 \newcommand\ty{\tau}
 \newcommand\tyenv{\Gamma}
+\newcommand\csenv{C}
 
 % Constructions 
 
@@ -15,7 +20,7 @@
 
 % Type
 \newcommand\tyconst{\iota}
-\newcommand\tyvar{X}
+\newcommand\tyvar{\alpha}
 \newcommand\tykind{*}
 \newcommand\tyarrow[2]{#1 \rightarrow #2}
 
@@ -31,11 +36,81 @@
 \newcommand\tyenvmem[2]{#1 \in #2}
 
 % Keyword
-\newcommand\kw[1]{\textrm{ #1 }}
+\newcommand\kw[1]{\operatorname{#1}}
+
+% Syntax
+\newcommand\syn[1]{#1 ::=& \; }
+\newcommand\synor{\\ |& \; }
 \begin{document}
 
 % Pattern
 \newcommand\pator{\;|\;}
+
+\section{Syntax}
+
+\begin{multicols}{2}
+\begin{align*}
+  \syn{\term_1, \term_2} \var, y
+  \synor      \term_1 \, \term_2
+  \synor      \lambda \binding{\var}{\ty} . \term
+  \synor      \Lambda \tyvar . \term
+  \synor      \term \, \ty
+  \synor      prim \, \vec{\term}
+  \synor      \kw{letrec} \vec{\var_i : \ty_i = \term_i} \kw{in} \term
+  \synor      \kw{match} \term \kw{with} \vec{b} : \ty
+  \synor      \kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2
+%
+  \\ \\
+%
+  \syn{b} n \rightarrow \term \; | \; b
+  \synor  \_ \rightarrow \term
+  \synor  \emptyset
+%
+  \\ \\
+%
+  \syn{\ty_1, \ty_2} \tyvar, \beta
+  \synor  \ty_1 \rightarrow \ty_2
+  \synor  \forall \tyvar. \ty
+  \synor  F
+  \synor  \{ \var . \ty \}_F
+  \synor  \kw{Tag}_z \{ \var . \ty \}_F
+  \synor  \{ n: \vec{\ty} \}
+  \\
+  \syn{F} constructor \, \vec{\ty}
+\end{align*}
+   
+\begin{align*}
+  \syn{C} C \wedge C
+  \synor  \ty_1 = \ty_2
+  \synor  \kw{tag} \var \in S
+  \synor  \top
+%
+  \\ \\
+%
+  \syn{S} \emptyset
+  \synor  [ k_1 ; k_2 ]
+  \synor  \lnot \{ k \}
+%
+  \\ \\
+%
+  \syn{\tyenv} .
+  \synor \tyenv \binding{\alpha}{*}
+  \synor \tyenv \binding{\var}{\ty}
+%
+  \\ \\
+%
+  \syn{prim} \kw{makeblock}_{n,\ty}
+  \synor \kw{tagof}
+  \synor \kw{field}_{n}
+  \synor \kw{eq}_{z}
+  \synor \kw{lt}_{z}
+  \synor \kw{isint}
+  \synor \kw{isout}_{[z1,z2]}
+  \synor \kw{shift}_{z}
+\end{align*}
+\end{multicols}
+
+\section{Règles de typage}
 
 \begin{mathpar}
 
@@ -46,95 +121,159 @@
 }
 
 \infer{
-  \tycheck{\tyenvcons\tyenv\var{\ty_1}}{\term}{\ty_2}
+  \tycheck{\csenv, \tyenvcons\tyenv\var{\ty_1}}{\term}{\ty_2}
 }{
-  \tycheck\tyenv{\lam{\binding\var{\ty_1}}{\term}}{\tyarrow{\ty_1}{\ty_2}}
+  \tycheck{\csenv, \tyenv}{\lam{\binding\var{\ty_1}}{\term}}{\tyarrow{\ty_1}{\ty_2}}
 }
 
 \infer{
-  \tycheck{\tyenv}{\term_1}{\tyarrow{\ty_1}{\ty_2}} \\
-  \tycheck{\tyenv}{\term_2}{\ty_1}
+  \tycheck{\csenv, \tyenv}{\term_1}{\tyarrow{\ty_1}{\ty_2}} \\
+  \tycheck{\csenv, \tyenv}{\term_2}{\ty_1}
 }{
-  \tycheck{\tyenv}{\term_1 \term_2}{\ty_2}
+  \tycheck{\csenv, \tyenv}{\term_1 \term_2}{\ty_2}
 }
 
 \infer{
-  \tycheck{\tyenv}{\term_1}{\ty_1} \\
-  \tycheck{\tyenvcons{\tyenv}{\var}{\ty_1}}{\term_2}{\ty_2}
+  \forall i.\; \tycheck{\csenv, \tyenvcons{\tyenv}{\forall j.\, \var_j}{\ty_j}}{\term_i}{\ty_i} \\
+  \tycheck{\csenv, \tyenvcons{\tyenv}{\forall j.\, \var_j}{\ty_j}}{\term}{\ty}
 }{
-  \tycheck{\tyenv}{\kw{let} \var = \term_1 \kw{in} \term_2}{\ty_2}
+  \tycheck{\csenv, \tyenv}{\kw{letrec} (\var_i : \ty_i = \term_i) \kw{in} \term}{\ty}
+}
+
+\\
+
+\infer{
+  \tycheck{\csenv, \tyenvcons{\tyenv}{\tyvar}{\tykind}}{\term}{\ty}
+}{
+  \tycheck{\csenv, \tyenv}{\Lambda \tyvar . \term }{\forall \tyvar.\, \ty}
 }
 
 \infer{
-  \forall i.\; \tycheck{\tyenvcons{\tyenv}{\forall j.\, \var_j}{\ty_j}}{\term_i}{\ty_i} \\
-  \tycheck{\tyenvcons{\tyenv}{\forall j.\, \var_j}{\ty_j}}{\term}{\ty}
+  \tycheck{\csenv, \tyenv}{\term}{\forall \tyvar.\, \ty_1}
 }{
-  \tycheck{\tyenv}{\kw{letrec} (\var_i : \ty_i = \term_i) \kw{in} \term}{\ty}
+  \tycheck{\csenv, \tyenv}{\term \, \ty_2}{\ty_1 \{X \leftarrow \ty_2\}}
+}
+
+\\
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term_1}{F} \\
+  \tycheck{\csenv, \tyenvcons{\tyenvcons{\tyenv}{\tyvar}{*}}
+           {\var}{ \{ \var . \tyvar \}_F }}
+          {\term_2}{\ty}
+}{
+  \tycheck{\csenv, \tyenv}{\kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2}{\ty} \\
+}
+
+\\
+
+\infer{
+  k \in dom(F) \\
+  \tycheck{\csenv \wedge \kw{tag} \var \in \{ k \} \wedge F k, \tyenv}{\term}{\ty} \\
+  \tycheck{\csenv \wedge \kw{tag} \var \in \lnot \{ k \}, x, F, \tyenv}{\vec{b}}{\ty}
+}{
+  \tycheck{\csenv, \tyenv, x, F}{k \rightarrow \term \;|\; \vec{b}}{\ty}
 }
 
 \infer{
-  \tycheck{\tyenvcons{\tyenv}{\tyvar}{\tykind}}{\term}{\ty}
+  \tycheck{\csenv, \tyenv}{\term}{\ty}
 }{
-  \tycheck{\tyenv}{\Lambda \tyvar . \term }{\forall \tyvar.\, \ty}
+  \tycheck{\csenv, \tyenv, x, F}{\_ \rightarrow \term}{\ty}
 }
 
 \infer{
-  \tycheck{\tyenv}{\term}{\forall \tyvar.\, \ty_1}
+  %FIXME: from constraints, we deduce tag = empty%
+  \csenv \Vdash dom(F) \cap \kw{tag} x = \emptyset
 }{
-  \tycheck{\tyenv}{\term \, \ty_2}{\ty_1 \{X \leftarrow \ty_2\}}
+  \tycheck{\csenv, \tyenv, x, F}{\emptyset}{\ty}
 }
 
 \infer{
-  \tycheck{\tyenv}{\term}{[ \binding{0}{\vec{\tyvar}. \vec{\phi}} ; \theta]} \\
-  \tycheck{\Phi(\theta, \tyenv)}{\term_1}{\ty} \\
-  \tycheck{\Phi([ \binding{0}{\vec{X}. \vec{\phi}} ], \tyenv)}{\term_2}{\ty}
+  \tycheck{\csenv, \tyenv}{\term}{\{ \var . \ty \}_F} \\
+  \tycheck{\csenv, \tyenv, \var, F}{\vec{b}}{\ty}
 }{
-  \tycheck{\tyenv}{\kw{if} \term \kw{then} \term_1 \kw{else} \term_2}{\ty}
+  \tycheck{\csenv, \tyenv}{\kw{match} \term \kw{with} \vec{b}}{\ty}
+}
+
+\\
+
+\infer{
+  % FIXME: Smell?
+  \tycheck{\csenv, \tyenv}{\term}{\{ \var . \ty \}_F} \\
+}{
+  \tycheck{\csenv, \tyenv}{\term}{\ty}
 }
 
 \infer{
-  \tycheck{\tyenv}{\term}{[]} \\
+  % FIXME: Smell?
+  \tycheck{\csenv, \tyenv}{\term}{\{ \var . \ty \}_F} \\
 }{
-  \tycheck{\tyenv}{\kw{match} \term \kw{with} \emptyset}{\ty}
-}
-
-\infer{
-  \tycheck{\tyenv}{\term}{[\ldots]} \\
-  \tycheck{\tyenv}{\term_1}{\ty} \\
-}{
-  \tycheck{\tyenv}{\kw{match} \term \kw{with} \_ \rightarrow \term_1}{\ty}
-}
-
-\infer{
-  \tycheck{\tyenv}{\term}{[\binding{n}{\_}; \theta]} \\
-  \tycheck{\tyenvcons{\tyenv}{\var}{[\theta]}}{\kw{match} \var \kw{with} B \pator \_ \rightarrow \term_1}{\ty} \\
-}{
-  \tycheck{\tyenv}{\kw{match} \term \kw{with} B \pator \_ \rightarrow \term_1}{\ty}
-}
-
-\infer{
-  \tycheck{\tyenv}{\term_1}{[\binding{n}{\vec{\tyvar_0}. \vec{\phi_0}. \vec{\ty_0}}; \theta]} \\
-  \tycheck{\Phi([ \binding{n}{\vec{\tyvar_0}. \vec{\phi_0}. \vec{\ty_0}} ], \tyenv)}{\term_2}{\ty} \\
-  \tycheck{\tyenvcons{\tyenv}{\var}{[\theta]}}{\kw{match} \var \kw{with} B}{\ty}
-}{
-  \tycheck{\tyenv}{\kw{match} \term_1 \kw{with} n \rightarrow \term_2 \pator B}{\ty} \\
-}
-
-\infer{
-  \tycheck{\tyenv}{\term_1}{[\binding{n}{\vec{\tyvar_0}. \vec{\phi_0}. \vec{\ty_0}}; \theta]} \\
-  \tycheck{\Phi([ \binding{n}{\vec{\tyvar_0}. \vec{\phi_0}. \vec{\ty_0}} ], \tyenv)}{\term_2}{\ty} \\
-  \tycheck{\tyenvcons{\tyenv}{\var}{[\theta]}}{\kw{match} \var \kw{with} B}{\ty}
-}{
-  \tycheck{\tyenv}{\kw{match} \term_1 \kw{with} n \rightarrow \term_2 \pator B}{\ty} \\
-}
-
-\infer{
-  \tycheck{\tyenv}{\term_1}{[\theta]} \\
-  \tycheck{\tyenvcons{\tyenvcons{\tyenv}{\var}{\tyvar}}{\tyvar}{\mathcal{P}(\theta)}}{\term_2}{\ty}
-}{
-  \tycheck{\tyenv}{\kw{unpack} \term_1 \kw{as} \binding{\var}{\tyvar} \kw{in} \term_2}{\ty} \\
+  \tycheck{\csenv, \tyenv}{\term}{F}
 }
 
 \end{mathpar}
+
+\section{Type des primitives}
+\begin{mathpar}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\{ \var . \ty \}_F}
+}{
+  \tycheck{\csenv, \tyenv}{\kw{tagof} \term}{\kw{Tag} \{ \var . \ty \}_F}
+}
+
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\{ k: \vec{\ty_n} \}}
+}{
+  \tycheck{\csenv, \tyenv}{\kw{field}_i \term}{\ty_i}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\{ k: \vec{\ty_n} \}}
+}{
+  \tycheck{\csenv, \tyenv}{\kw{field}_i \term}{\ty_i}
+}
+
+\infer{
+  k \in dom(F) \\
+  \tycheck{\forall i. \, \csenv, \tyenv}{\term_i}{F_{k,i}} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{makeblock}_{k,F} \vec{\term_n}}{F}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \{ \var . \ty \}_F} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{shift}_k \term}{\kw{Tag}_{z+k} \{ \var . \ty \}_F}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag} \{ \var . \ty \}_F} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{isint} \term}{\kw{IsInt}(x,F)}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \{ \var . \ty \}_F} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{eq}_k \term}{\operatorname{Eq}(k-z,x,F)}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \{ \var . \ty \}_F} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{lt}_k \term}{\operatorname{Lt}(k-z,x,F)}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \{ \var . \ty \}_F} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{IsOut}_{[z1,z2]} \term}{\operatorname{IsOut}(z1-z,z2-z,x,F)}
+}
+
+\end{mathpar}
+
+\section{Constructeurs de types}
 
 \end{document}
