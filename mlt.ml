@@ -66,11 +66,11 @@ and ty =
 
 and ty_const =
   | Ty_const_int
-  | Ty_const_float
   | Ty_const_string
 
 and ty_con = 
-  { ty_name : Ident.t ; ty_vars : Ident.t list ; ty_body : ty }
+  { ty_name : Ident.t ; ty_vars : Ident.t list ; ty_ctors : (tag * ty list) list }
+
 and ty_prim = ty_con * ty list
 
 and constr = 
@@ -214,36 +214,21 @@ end
 type binding =
   | Tmvar of ty (* Type of term variable *)
   | Tyvar of ty (* Value of type variable *)
-  | Tycon of tyvar list * ty (* Type scheme *)
   | Tyfree (* Free type variable *)
 
-let ctx_initial, ty_bool = 
-  let ty_bool, _, _ as bool_def = 
-    Ident.make "bool", [], 
-    Ty_tagged (Tag_cons (0, [], [], [], 
-                         Tag_cons (1, [], [], [], Tag_close)))
-  in
-  let types = [bool_def] in
-  let ctx = List.fold_right
-      (fun (name, vars, def) ->
-         IdentMap.add name (Tycon (vars,def)))
-      types IdentMap.empty 
-  in 
-  ctx, ty_bool
+let ty_bool = {
+  ty_name  = Ident.make "bool" ; 
+  ty_vars  = [] ;
+  ty_ctors = [0, []; 1, []]
+}, []
 
 let rec wellformed_ty ctx = function
   | Ty_var v -> 
     (try match IdentMap.find v ctx with
        | Tyvar _ | Tyfree -> ()
-       | Tycon _ -> failwith "wellformed_ty: unexpected type constructor"
        | Tmvar _ -> failwith "wellformed_ty: reference to term variable"
       with Not_found -> failwith "wellformed_ty: unbound variable");
-  | Ty_con (v,targs) -> 
-    (try match IdentMap.find v ctx with
-       | Tycon (v,arity) when arity = List.length targs -> ()
-       | _ -> failwith "wellformed_ty: reference to term variable"
-      with Not_found -> failwith "wellformed_ty: unbound constructor");
-     List.iter (wellformed_ty ctx) targs
+  | Ty_con tprim -> wellformed_ty_prim ctx tprim
   | Ty_const _ -> ()
   | Ty_abs (v,ty) ->
     if IdentMap.mem v ctx then failwith "wellformed_ty: already bound variable";
@@ -251,8 +236,18 @@ let rec wellformed_ty ctx = function
   | Ty_arrow (targ, tres) ->
     wellformed_ty ctx targ;
     wellformed_ty ctx tres
-  | Ty_tagged _ -> failwith "wellformed_ty: 'tagged' can't appear in syntax"
-  | Ty_proxy _ -> failwith "wellformed_ty: 'proxy' can't appear in syntax"
+  | Ty_tagged (v,p) | Ty_tag (_,v,p) ->
+    (try match IdentMap.find v ctx with
+       | Tmvar _ -> ()
+       | Tyvar _ | Tyfree -> failwith "wellformed_ty: reference to type variable in tag"
+     with Not_found -> failwith "wellformed_ty: unbound variable");
+    wellformed_ty_prim ctx p
+  | Ty_block (_,t) -> List.iter (wellformed_ty ctx) t
+
+and wellformed_ty_prim ctx (con,targs) =
+  (if List.length con.ty_vars <> List.length targs then
+     failwith "Invalid type constructor arity");
+  List.iter (wellformed_ty ctx) targs
 
 let rec wellformed_tm ctx = function
   | Tm_var v -> 
@@ -260,36 +255,21 @@ let rec wellformed_tm ctx = function
        | Tmvar _ -> ()
        | _ -> failwith "wellformed_tm: expecting term variable"
       with Not_found -> failwith "wellformed_tm: unbound variable");
-  | Tm_const cst -> ()
+  | Tm_value _ -> ()
   | Tm_app (f,a) ->
     wellformed_tm ctx f;
     wellformed_tm ctx a
   | Tm_fun ((id,t), body) ->
     wellformed_ty ctx t;
     wellformed_tm (IdentMap.add id (Tmvar t) ctx) body
-  | Tm_let (id, value, body) ->
-    wellformed_tm ctx value;
-    (* Fake type *)
-    wellformed_tm (IdentMap.add id (Tmvar (Ty_const Ty_const_int)) ctx) body
-  | Tm_letrec (values, body) ->
-    let ctx = List.fold_left 
-        (fun ctx ((id,ty),_) -> IdentMap.add id (Tmvar ty) ctx)
-        ctx values
-    in
-    List.iter (fun (_,expr) -> wellformed_tm ctx expr) values;
-    wellformed_tm ctx body
-  | Tm_if (cond, t, e) ->
-    wellformed_tm ctx cond;
-    wellformed_tm ctx t;
-    wellformed_tm ctx e
   | Tm_switch (value, branches, ty) ->
     wellformed_tm ctx value;
-    List.iter (wellformed_tm ctx) (List.map snd branches);
+    wellformed_br ctx branches;
     wellformed_ty ctx ty
-  | Tm_unpack (value, idtm, idty, body) ->
+  | Tm_unpack (value, idtm, body) ->
     wellformed_tm ctx value;
-    wellformed_tm (IdentMap.add idtm (Tmvar (Ty_proxy (idty,0)))
-                     (IdentMap.add idty Tyfree ctx)) body
+    wellformed_tm 
+      (IdentMap.add idtm (Tmvar (Ty_tag (0,idtm,ty_bool))) ctx) body
   | Tm_prim (p, args) ->
     List.iter (wellformed_tm ctx) args
   | Tm_tyabs (v, body) ->
@@ -298,72 +278,36 @@ let rec wellformed_tm ctx = function
     wellformed_tm ctx expr;
     wellformed_ty ctx ty
 
+and wellformed_br ctx = function
+  | Br_tag (_,e,br') -> 
+    wellformed_tm ctx e;
+    wellformed_br ctx br'
+  | Br_any e -> wellformed_tm ctx e
+  | Br_end -> ()
+
 let rec check_equal_type t1 t2 = match t1, t2 with
   | Ty_var v1, Ty_var v2 when Ident.equal v1 v2 -> ()
-  | Ty_con (v1,ts1), Ty_con (v2,ts2) when Ident.equal v1 v2 ->
-    List.iter2 check_equal_type ts1 ts2
+  | Ty_con p1, Ty_con p2 -> check_equal_tprim p1 p2
   | Ty_const c1, Ty_const c2 when c1 = c2 -> ()
   | Ty_abs (v1,t1), Ty_abs (v2,t2) when Ident.equal v1 v2 ->
     check_equal_type t1 t2
   | Ty_arrow (ta1,tb1), Ty_arrow (ta2,tb2) ->
     check_equal_type ta1 ta2;
     check_equal_type tb1 tb2
-  | Ty_tagged ts1, Ty_tagged ts2 -> check_equal_tagset ts1 ts2
-  | Ty_proxy (v1,d1), Ty_proxy (v2,d2) when Ident.equal v1 v2 && d1 = d2 ->
-    ()
+  | Ty_tagged (v1,p1), Ty_tagged (v2,p2) when Ident.equal v1 v2 ->
+    check_equal_tprim p1 p2
+  | Ty_tag (t1,x1,p1), Ty_tag (t2,x2,p2) when t1 = t2 && Ident.equal x1 x2 ->
+    check_equal_tprim p1 p2
+  | Ty_block (t1,ts1), Ty_block (t2,ts2) when t1 = t2 ->
+    List.iter2 check_equal_type ts1 ts2
+
   | _ -> failwith "incompatible types"
 
-and check_equal_tagset ts1 ts2 = match ts1, ts2 with
-  | Tag_cons (tg1,id1,c1,tys1,ts1'), Tag_cons (tg2,id2,c2,tys2,ts2') 
-    when tg1 = tg2 && List.for_all2 Ident.equal id1 id2 ->
-    List.iter2 check_equal_cstr c1 c2;
-    List.iter2 check_equal_type tys1 tys2;
-    check_equal_tagset ts1' ts2'
-  | Tag_open, Tag_open | Tag_close, Tag_close -> ()
-  | _ -> failwith "incompatible tagsets"
-
-and check_equal_cstr c1 c2 = match c1, c2 with
-  | Cstr_equal (v1, t1), Cstr_equal (v2, t2) 
-  | Cstr_subst (v1, t1), Cstr_subst (v2, t2) when Ident.equal v1 v2 ->
-    check_equal_type t1 t2 
-  | _ -> failwith "incompatible constraints"
+and check_equal_tprim (p1,args1) (p2,args2) =
+  if not (p1 == p2) then failwith "different type constructors";
+  List.iter2 check_equal_type args1 args2
 
 let is_equal_type t1 t2 = try check_equal_type t1 t2; true with _ -> false
-
-let rec subst_type s = function
-  | Ty_var v as t ->
-    (try IdentMap.find v s
-     with Not_found -> t)
-  | Ty_con (v,tys) -> 
-    (if IdentMap.mem v s then failwith "trying to substitute type constructor");
-    Ty_con (v, List.map (subst_type s) tys)
-  | Ty_const _ as t -> t
-  | Ty_abs (v,ty) -> 
-    (if IdentMap.mem v s then failwith "trying to substitute free variable");
-    subst_type s ty
-  | Ty_arrow (targ,tres) -> Ty_arrow (subst_type s targ, subst_type s tres)
-  | Ty_tagged ts -> Ty_tagged (subst_tagset s ts)
-  | Ty_proxy (v,_) as t ->
-    (if IdentMap.mem v s then failwith "trying to substitute proxy variable");
-    t
-
-and subst_tagset s = function
-  | Tag_close | Tag_open as t -> t
-  | Tag_cons (tg,tv,cstr,tys,ts') ->
-    let assert_nosubst v =
-      if IdentMap.mem v s then failwith "trying to substitute tagset variable"
-    in
-    List.iter assert_nosubst tv;
-    Tag_cons (tg, tv, List.map (subst_cstr s) cstr, 
-              List.map (subst_type s) tys, subst_tagset s ts')
-
-and subst_cstr s = function
-  | Cstr_subst (v,t) -> 
-    if IdentMap.mem v s then failwith "trying to substitute constraint variable";
-    Cstr_subst (v, subst_type s t)
-  | Cstr_equal (v,t) -> 
-    if IdentMap.mem v s then failwith "trying to substitute constraint variable";
-    Cstr_equal (v, subst_type s t)
 
 let rec type_of ctx = function
   | Tm_var v -> 
@@ -371,11 +315,7 @@ let rec type_of ctx = function
        | Tmvar t -> t
        | _ -> failwith "type_of: expecting term variable"
      with Not_found -> failwith "type_of: unbound variable")
-  | Tm_const cst ->
-    (match cst with
-     | Tm_int _ -> Ty_const_int
-     | Tm_float _ -> Ty_const_float
-     | Tm_string _ -> Ty_const_string)
+  | Tm_value v -> type_of_value ctx v
   | Tm_app (f,arg) ->
     (match type_of ctx f with
      | Ty_arrow (targ,tres) ->
@@ -385,19 +325,36 @@ let rec type_of ctx = function
   | Tm_fun ((id,t), body) ->
     let tres = type_of (IdentMap.add id (Tmvar t) ctx) body in
     Ty_arrow (t, tres)
-  | Tm_let (id, value, body) ->
-    let t = type_of ctx value in
-    type_of (IdentMap.add id (Tmvar t) ctx) body
-  | Tm_if (cond, t, e) ->
-    (match type_of ctx cond with
-     | Ty_con (v,[]) when Ident.equal v ty_bool ->
-       let tt, te = type_of ctx t, type_of ctx te in
-       check_equal_type tt te;
-       tt
-     | Ty_tagged _ -> failwith "TODO"
-     | _ -> failwith "expecting boolean")
-  | Tm_switch (value, branches, ty) ->
-  | Tm_unpack (value, idtm, idty, body) ->
-  | Tm_prim (p, args) ->
-  | Tm_tyabs 
-  | Tm_tyapp
+  | Tm_tyabs (tv, body) -> 
+    Ty_abs (tv, type_of (IdentMap.add tv Tyfree ctx) body)
+  | Tm_tyapp (body,ty) ->
+    begin match type_of ctx body with
+      | Ty_abs (tv,tres) -> subst_type IdentMap.(add tv ty empty) tres
+      | _ -> failwith "expecting type abstraction"
+    end
+  | Tm_switch (expr, branches, ty) ->
+    let texpr = type_of ctx expr in
+    type_of_branches ctx ty branches
+  | Tm_unpack (expr, idtm, body) ->
+    begin match type_of ctx expr with
+      | Ty_con p | Ty_tagged (_,p) ->
+        type_of IdentMap.(add idtm (Tmvar (Ty_tagged (idtm, p))) ctx) body
+      | _ -> failwith "cannot unpack a non-constructor"
+    end
+  | Tm_prim (p, args) -> failwith "TODO"
+
+and type_of_branches ctx ty = function
+  | Br_tag (t,e,br') ->
+    check_equal_type (type_of ctx e) ty;
+    type_of_branches ctx ty br'
+  | Br_any e ->
+    check_equal_type (type_of ctx e) ty;
+    ty
+  | Br_end -> ty
+
+and type_of_value ctx = function
+  | Tv_string _ -> Ty_const Ty_const_string
+  | Tv_int _ -> Ty_const Ty_const_int
+  | Tv_block (t,vs) -> Ty_block (t, List.map (type_of_value ctx) vs)
+  | Tv_fun (binding,body) -> type_of ctx (Tm_fun (binding,body))
+
