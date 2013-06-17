@@ -24,12 +24,11 @@ type tag = int
 
 type expr =
   | Tm_var of tmvar
-  | Tm_const of const
+  | Tm_value of value
   | Tm_app of expr * expr
   | Tm_fun of (tmvar * ty) * expr
-  | Tm_letrec of ((tmvar * ty) * expr) list * expr
-  | Tm_match of expr * branches * ty
-  | Tm_unpack of expr * tmvar * tyvar * expr
+  | Tm_switch of expr * branches * ty
+  | Tm_unpack of expr * tmvar * expr
   | Tm_prim of prim * expr list
   | Tm_tyabs of tyvar * expr
   | Tm_tyapp of expr * ty
@@ -43,23 +42,27 @@ and prim =
   | Pr_tagof
   | Pr_makeblock of int * ty
   | Pr_field of int
-  | Pr_eq
-  | Pr_lt
+  | Pr_eq of int
+  | Pr_lt of int
+  | Pr_shift of int
   | Pr_isint
+  | Pr_isout of int * int
 
-and const =
-  | Tm_int of int
-  | Tm_string of string
+and value =
+  | Tv_int of int
+  | Tv_string of string
+  | Tv_block of int * value list
+  | Tv_fun of (tmvar * ty) * expr
 
 and ty =
   | Ty_var of tyvar
-  | Ty_con of ty_con * ty list
+  | Ty_con of ty_prim
   | Ty_const of ty_const
   | Ty_abs of tyvar * ty
   | Ty_arrow of ty * ty
   | Ty_block of tag * ty list
-  | Ty_tagged of tmvar * ty * ty_con
-  | Ty_tag of tmvar * ty * ty_con
+  | Ty_tagged of tmvar * ty_prim
+  | Ty_tag of int * tmvar * ty_prim
 
 and ty_const =
   | Ty_const_int
@@ -68,6 +71,7 @@ and ty_const =
 
 and ty_con = 
   { ty_name : Ident.t ; ty_vars : Ident.t list ; ty_body : ty }
+and ty_prim = ty_con * ty list
 
 and constr = 
   | Cstr_conj of constr * constr
@@ -75,73 +79,134 @@ and constr =
   | Cstr_tagmem of Ident.t * tagset
   | Cstr_top
 
+and tagset =
+  | Ts_empty
+  | Ts_inside of tag * tag
+  | Ts_outside of tag * tag
+
 let rec subst_type s = function
   | Ty_var v as t ->
     (try IdentMap.find v s
      with Not_found -> t)
-  | Ty_con (v,tys) -> 
-    (if IdentMap.mem v s then failwith "trying to substitute type constructor");
-    Ty_con (v, List.map (subst_type s) tys)
+  | Ty_con (v,tys) -> Ty_con (v, List.map (subst_type s) tys)
   | Ty_const _ as t -> t
   | Ty_abs (v,ty) -> 
-    (if IdentMap.mem v s then failwith "trying to substitute free variable");
+    (if IdentMap.mem v s then failwith "trying to substitute bound variable");
     subst_type s ty
   | Ty_arrow (targ,tres) -> Ty_arrow (subst_type s targ, subst_type s tres)
-  | Ty_tagged ts -> Ty_tagged (subst_tagset s ts)
-  | Ty_proxy (v,_) as t ->
+  | Ty_block (tag,ts) -> Ty_block (tag, List.map (subst_type s) ts)
+  | Ty_tagged (v,_) | Ty_tag (_,v,_) as t  ->
     (if IdentMap.mem v s then failwith "trying to substitute proxy variable");
     t
 
-and subst_tagset s = function
-  | Tag_close | Tag_open as t -> t
-  | Tag_cons (tg,tv,cstr,tys,ts') ->
-    let assert_nosubst v =
-      if IdentMap.mem v s then failwith "trying to substitute tagset variable"
-    in
-    List.iter assert_nosubst tv;
-    Tag_cons (tg, tv, List.map (subst_cstr s) cstr, 
-              List.map (subst_type s) tys, subst_tagset s ts')
+let subst_prim s = function
+  | Pr_makeblock (tag, ty) -> Pr_makeblock (tag, subst_type s ty)
+  | Pr_tagof | Pr_field _ | Pr_eq _ | Pr_lt _| Pr_isint | Pr_isout _ | Pr_shift _ as pr -> pr
 
-and subst_cstr s = function
-  | Cstr_subst (v,t) -> 
-    if IdentMap.mem v s then failwith "trying to substitute constraint variable";
-    Cstr_subst (v, subst_type s t)
-  | Cstr_equal (v,t) -> 
-    if IdentMap.mem v s then failwith "trying to substitute constraint variable";
-    Cstr_equal (v, subst_type s t)
 
+let rec subst s sty = function
+  | Tm_var v as t -> 
+    (try IdentMap.find v s
+     with Not_found -> t)
+  | Tm_value _ as t -> t
+  | Tm_fun ((v,ty),t) -> 
+    (if IdentMap.mem v s then failwith "trying to substitute bound variable");
+    Tm_fun ((v, subst_type sty ty), subst s sty t)
+  | Tm_app (t1,t2) -> Tm_app(subst s sty t1, subst s sty t2)
+  | Tm_switch (e, br, ty) ->
+    Tm_switch (subst s sty e, subst_br s sty br, subst_type sty ty)
+  | Tm_unpack (e, v, body) -> 
+    (if IdentMap.mem v s then failwith "trying to substitute bound variable");
+    Tm_unpack (subst s sty e, v, subst s sty body)
+  | Tm_prim (p, es) -> Tm_prim (subst_prim sty p, List.map (subst s sty) es)
+  | Tm_tyabs (v, e) ->
+    (if IdentMap.mem v sty then failwith "trying to substitute bound type variable");
+    Tm_tyabs (v, subst s sty e)
+  | Tm_tyapp (e, ty) ->
+    Tm_tyapp (subst s sty e, subst_type sty ty)
+
+and subst_br s sty = function
+  | Br_tag (t,e,br') -> Br_tag (t, subst s sty e, subst_br s sty br')
+  | Br_any e -> Br_any (subst s sty e)
+  | Br_end -> Br_end
 
 module Eval =
 struct
   exception Value
-  (*let subst m = function
-    | Tm_var ->
-    | Tm_const ->
-    | Tm_fun ->
-    | Tm_app ->
-    | Tm_letrec ->
-    | Tm_match ->
-    | Tm_unpack ->
-    | Tm_prim ->
-    | Tm_tyabs ->
-    | Tm_tyapp ->
+  exception Runtime
 
   let is_value = function
-    | Tm_var _ | Tm_fun _ -> true
+    | Tm_value _ -> true
     | _ -> false
-  
-  let eval_step = function
-    | Tm_var v -> 
-      store, (try IdentMap.find v with Not_found ->
-              failwith "unbound variable")
-    | Tm_const _ | Tm_fun _ -> raise Value
-    | Tm_app (e1, e2) when is_value e2 -> eval ~store
-    | Tm_letrec of ((tmvar * ty) * expr) list * expr
-    | Tm_match of expr * branches * ty
-    | Tm_unpack of expr * tmvar * tyvar * expr
-    | Tm_prim of prim * expr list
-    | Tm_tyabs of tyvar * expr
-    | Tm_tyapp of expr * ty*)
+
+  let eval_prim p args = match p, args with
+    | Pr_makeblock (tag, _), args ->
+      Tm_value (Tv_block (tag, List.map
+                            (function Tm_value v -> v | _ -> raise Runtime)
+                            args))
+    | Pr_field i, [Tm_value (Tv_block (_, vs))] when i < List.length vs ->
+      Tm_value (List.nth vs i)
+
+    | Pr_tagof, [Tm_value (Tv_int x | Tv_block (x,_))] ->
+      Tm_value (Tv_int x)
+
+    | Pr_isint, [Tm_value (Tv_int _)] -> Tm_value (Tv_int 1)
+    | Pr_isint, [_] -> Tm_value (Tv_int 0)
+
+    | Pr_lt i, [Tm_value (Tv_int i')] when i' < i -> Tm_value (Tv_int 1)
+    | Pr_lt i, [Tm_value (Tv_int i')]  -> Tm_value (Tv_int 0)
+
+    | Pr_eq i, [Tm_value (Tv_int i')] when i' = i -> Tm_value (Tv_int 1)
+    | Pr_eq i, [Tm_value (Tv_int i')]  -> Tm_value (Tv_int 0)
+
+    | Pr_shift k, [Tm_value (Tv_int i)] -> Tm_value (Tv_int (i + k))
+
+    | Pr_isout (k1,k2), [Tm_value (Tv_int i)] when i < k1 || i > k2 ->
+      Tm_value (Tv_int 1)
+    | Pr_isout (k1,k2), [Tm_value (Tv_int i)]  ->
+      Tm_value (Tv_int 0)
+
+    | _, _ -> raise Runtime
+
+  let rec eval_step = function
+    | Tm_var _ -> raise Runtime
+    | Tm_value _ -> raise Value
+    | Tm_fun ((v,t),e) -> Tm_value (Tv_fun ((v,t),e))
+
+    | Tm_app (Tm_value (Tv_fun ((x, _), body)), (Tm_value _ as v2)) ->
+      subst IdentMap.(add x v2 empty) IdentMap.empty body
+    | Tm_app (Tm_value (Tv_fun _) as v1, e2) ->
+      Tm_app (v1, eval_step e2)
+    | Tm_app (e1, e2) -> Tm_app (eval_step e1, e2)
+
+    | Tm_switch (Tm_value (Tv_int t | Tv_block (t, _)),br,ty) ->
+      let rec branch = function
+        | Br_tag (t',body,_) when t = t' -> body
+        | Br_tag (_,_,next) -> branch next
+        | Br_any body -> body
+        | Br_end -> raise Runtime
+      in
+      branch br
+    | Tm_switch (e,br,ty) -> Tm_switch (eval_step e, br, ty)
+
+    | Tm_unpack (Tm_value _ as arg, x, body) ->
+      subst IdentMap.(add x arg empty) IdentMap.empty body
+    | Tm_unpack (arg, x, body) ->
+      Tm_unpack (eval_step arg, x, body)
+
+    | Tm_prim (p, args) when List.for_all is_value args ->
+      eval_prim p args
+
+    | Tm_prim (p, args) ->
+      let rec eval_args = function
+        | x :: xs when is_value x -> x :: eval_args xs
+        | x :: xs -> eval_step x :: xs
+        | _ -> raise Runtime
+      in
+      Tm_prim (p, eval_args args)
+
+    | Tm_tyabs (_, body) | Tm_tyapp (body, _) -> body
+
 end
 
 (* TYPER *)
@@ -217,7 +282,7 @@ let rec wellformed_tm ctx = function
     wellformed_tm ctx cond;
     wellformed_tm ctx t;
     wellformed_tm ctx e
-  | Tm_match (value, branches, ty) ->
+  | Tm_switch (value, branches, ty) ->
     wellformed_tm ctx value;
     List.iter (wellformed_tm ctx) (List.map snd branches);
     wellformed_ty ctx ty
@@ -331,7 +396,7 @@ let rec type_of ctx = function
        tt
      | Ty_tagged _ -> failwith "TODO"
      | _ -> failwith "expecting boolean")
-  | Tm_match (value, branches, ty) ->
+  | Tm_switch (value, branches, ty) ->
   | Tm_unpack (value, idtm, idty, body) ->
   | Tm_prim (p, args) ->
   | Tm_tyabs 
