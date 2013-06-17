@@ -18,6 +18,9 @@
 \newcommand\app[2]{#1\,#2}
 \newcommand\lam[2]{\lambda #1. #2}
 
+% Value
+\newcommand\val{v}
+
 % Type
 \newcommand\tyconst{\iota}
 \newcommand\tyvar{\alpha}
@@ -46,6 +49,9 @@
 % Pattern
 \newcommand\pator{\;|\;}
 
+% Operation semantic
+\newcommand\redto[2]{#1 \longrightarrow #2}
+
 \section{Syntax}
 
 \begin{multicols}{2}
@@ -57,7 +63,7 @@
   \synor      \term \, \ty
   \synor      prim \, \vec{\term}
 %  \synor      \kw{letrec} \vec{\var_i : \ty_i = \term_i} \kw{in} \term
-  \synor      \kw{match} \term \kw{with} \vec{b} : \ty
+  \synor      \kw{switch} \term \kw{in} \vec{b} : \ty
   \synor      \kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2
 %
   \\ \\
@@ -157,9 +163,10 @@
 \\
 
 \infer{
+  x \notin \kw{dom}(\tyenv) \\ x \notin \kw{FV}(\ty) \\
   \tycheck{\csenv, \tyenv}{\term_1}{F} \\
-  \tycheck{\csenv, \tyenvcons{\tyenvcons{\tyenv}{\tyvar}{*}}
-           {\var}{ \{ \var . \tyvar \}_F }}
+  \tycheck{\csenv, \tyenvcons{\tyenv}
+                             {\var}{ \{ \var \}_F }}
           {\term_2}{\ty}
 }{
   \tycheck{\csenv, \tyenv}{\kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2}{\ty} \\
@@ -192,7 +199,7 @@
   \tycheck{\csenv, \tyenv}{\term}{\{ \var \}_F} \\
   \tycheck{\csenv, \tyenv, \var, F}{\vec{b}}{\ty}
 }{
-  \tycheck{\csenv, \tyenv}{\kw{match} \term \kw{with} \vec{b}}{\ty}
+  \tycheck{\csenv, \tyenv}{\kw{switch} \term \kw{in} \vec{b}}{\ty}
 }
 
 \\
@@ -276,7 +283,157 @@
 
 \section{Constructeurs de types}
 
+\section{Résolution des contraintes}
+
 \section{Sémantique opérationnelle}
 
+\begin{mathpar} \\
+
+\redto{\app{(\lambda \binding{\var}{\ty} . \term)}{\val}}
+      {\term\{ \var \leftarrow \val\}}
+\\
+
+\infer{
+  \redto{\term_1}{\term'_1}
+}{
+  \redto{\app{\val}{\term_1}}{\app{\val}{\term'_1}}
+}
+\\
+
+\infer{
+  \redto{\term_1}{\term'_1}
+}{
+  \redto{\app{\term_1}{\term_2}}{\app{\term'_1}{\term_2}}
+}
+\\
+
+\infer{
+  \redto{\term_1}{\term'_1}
+}{
+  \redto{\kw{switch} \term_1 \kw{in} \vec{b}}{\kw{switch} \term'_1 \kw{in} \vec{b}}
+}
+\\
+
+\infer{
+  \redto{\term_1}{\term'_1}
+}{
+  \redto{\kw{switch} \term_1 \kw{in} \vec{b}}{\kw{switch} \term'_1 \kw{in} \vec{b}}
+}
+\\
+
+\infer{
+  \kw{tagof} \val = k
+}{
+  \redto{\kw{switch} \val \kw{in} k \rightarrow \term \pator \vec{b}}
+        {\term}
+}
+\\
+
+\infer{
+  \kw{tagof} \val \neq k
+}{
+  \redto{\kw{switch} \val \kw{in} k \rightarrow \term \pator \vec{b}}
+        {\kw{switch} \val \kw{in} \vec{b}}
+}
+\\
+
+\redto{\kw{switch} \val \kw{in} \_ \rightarrow \term}
+      {\term}
+\\
+
+\infer{
+  \redto{\term_1}{\term'_1}
+}{
+  \redto{\kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2}
+        {\kw{unpack} \term'_1 \kw{as} \var \kw{in} \term_2}
+}
+\\
+
+\redto{\kw{unpack} \val \kw{as} \var \kw{in} \term_2}
+      {\term_2\{\var \leftarrow \val\}}
+\\
+
+% Erase types
+\redto{\Lambda \tyvar . \term}{\term}
+
+\redto{\term \, \ty}{\term}
+\\
+
+\infer{
+  \redto{\vec{\term}}{\vec{\term'}}
+}{
+  \redto{\app{prim}{\vec{\term}}}{\app{prim}{\vec{\term'}}}
+}
+\\
+
+\end{mathpar}
+
+\section{Réduction des primitives}
+
+\begin{mathpar} \\
+
+\redto{\kw{makeblock}_{k,\ty} \vec{v}}{\{k: \vec{v}\}} \\
+
+
+\redto{\kw{field}_i \{k: \vec{v}\}}{v_i} \\
+
+
+\redto{\kw{shift}_z k}{z + k} \\
+
+
+\redto{\kw{tagof} k}{k}
+
+\redto{\kw{tagof} \{k: \vec{v}\}}{k} \\
+
+
+\infer{ [k] = z }
+      { \redto{\kw{eq}_z k}{1} }
+
+\infer{ [k] \neq z }
+      { \redto{\kw{eq}_z k}{0} }
+\\
+
+
+\infer{ [k] \le z }
+      { \redto{\kw{lt}_z k}{1} }
+
+\infer{ [k] \nless z }
+      { \redto{\kw{lt}_z k}{0} }
+\\
+
+
+\redto{\kw{isint} k}{1}
+
+\redto{\kw{isint} \{k: \vec{v}\}}{0}
+\\
+
+\infer{ [k] \in [k_1,k_2] }
+      { \redto{\kw{isout}_{[k_1,k_2]} k}{0} }
+
+\infer{ [k] \notin [k_1,k_2] }
+      { \redto{\kw{isout}_{[k_1,k_2]} k}{1} }
+\\
+
+\end{mathpar}
+
+\section{Formation des contextes}
+
+\begin{mathpar}
+\infer{ }{ \vdash . }
+
+\infer{
+  \vdash \tyenv \\
+  \tyenv \vdash \ty
+}{
+  \vdash \tyenvcons\tyenv{\var}{\ty}
+}
+
+\infer{
+  \vdash \tyenv \\
+  \tyenv \vdash F
+}{
+  \vdash \tyenvcons\tyenv{\var}{\{ \var \}_F}
+}
+\end{mathpar}
 
 \end{document}
