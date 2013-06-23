@@ -82,7 +82,7 @@
   \synor  \kw{Tag}_z \var
   \synor  \{ n: \vec{\ty} \}
   \\
-  \syn{F} constructor \, \vec{\ty}
+  \syn{F} \epsilon \, \vec{\ty}
 \end{align*}
    
 \begin{align*}
@@ -94,8 +94,8 @@
   \\ \\
 %
   \syn{S} \emptyset
-  \synor  [ k_1 ; k_2 ]
-  \synor  \lnot \{ k \}
+  \synor  \{ k_1, \ldots, k_n \}
+  \synor  \lnot \{ k_1, \ldots, k_n \}
 %
   \\ \\
 %
@@ -157,7 +157,7 @@
 \infer{
   \tycheck{\csenv, \tyenv}{\term}{\forall \tyvar.\, \ty_1}
 }{
-  \tycheck{\csenv, \tyenv}{\term \, \ty_2}{\ty_1 \{X \leftarrow \ty_2\}}
+  \tycheck{\csenv, \tyenv}{\term \, \ty_2}{\ty_1 \{\tyvar \leftarrow \ty_2\}}
 }
 
 \\
@@ -200,22 +200,6 @@
   \tycheck{\csenv, \tyenv, \var, F}{\vec{b}}{\ty}
 }{
   \tycheck{\csenv, \tyenv}{\kw{switch} \term \kw{in} \vec{b}}{\ty}
-}
-
-\\
-
-\infer{
-  % FIXME: Smell?
-  \tycheck{\csenv, \tyenv}{\term}{\{ \var \}_F} \\
-}{
-  \tycheck{\csenv, \tyenv}{\term}{\ty}
-}
-
-\infer{
-  % FIXME: Smell?
-  \tycheck{\csenv, \tyenv}{\term}{\{ \var \}_F} \\
-}{
-  \tycheck{\csenv, \tyenv}{\term}{F}
 }
 
 \end{mathpar}
@@ -283,7 +267,17 @@
 
 \section{Constructeurs de types}
 
-\section{Résolution des contraintes}
+\begin{align*}
+  \syn{\rho} k \rightarrow \vec{\ty} \,;\, \rho
+  \synor \ldots
+  \synor \emptyset
+\end{align*}
+
+Soit $\epsilon$ l'ensemble des noms des constructeurs de types. \\
+On suppose l'existence d'une fonction 
+$\delta : \epsilon \times \vec{\ty} \to \rho$.
+
+\section{Sémantique des contraintes}
 
 \section{Sémantique opérationnelle}
 
