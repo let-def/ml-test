@@ -1,0 +1,485 @@
+% Metavars
+\newcommand\term{t}
+\newcommand\ty{\tau}
+\newcommand\tyenv{\Gamma}
+\newcommand\csenv{C}
+
+% Term
+\newcommand\var{x}
+\newcommand\app[2]{#1\,#2}
+\newcommand\lam[2]{\lambda #1. #2}
+
+% Value
+\newcommand\val{v}
+
+% Type
+\newcommand\tyconst{\iota}
+\newcommand\tyvar{\alpha}
+\newcommand\tykind{*}
+\newcommand\tyarrow[2]{#1 \rightarrow #2}
+
+% Binding
+\newcommand\binding[2]{(#1 : #2)}
+
+% Typing environment
+\newcommand\tyenvnil{\bullet}
+\newcommand\tyenvcons[3]{#1; \binding{#2}{#3}}
+
+% Jugements
+\newcommand\tycheck[3]{#1 \vdash #2 : #3}
+\newcommand\tyenvmem[2]{#1 \in #2}
+
+% Keyword
+\newcommand\kw[1]{\operatorname{#1}}
+
+% Syntax
+\newcommand\syn[1]{#1 ::=& \; }
+\newcommand\synor{\\ |& \; }
+\newcommand\syndesc[1]{& \text{#1}}
+
+% Pattern
+\newcommand\pator{\;|\;}
+
+% Operation semantic
+\newcommand\redto[2]{#1 \longrightarrow #2}
+
+\chapter{Langage proposé}
+
+\section{Syntaxe}
+
+\begin{figure}
+\begin{align*}
+  \syn{\term_1, \term_2} \var, y 
+    \syndesc{variable}
+  \synor      \term_1 \, \term_2
+    \syndesc{application}
+  \synor      \lambda \binding{\var}{\ty} . \term
+    \syndesc{abstraction}
+  \synor      \Lambda \tyvar . \term
+    \syndesc{abstraction de type}
+  \synor      \term \, \ty
+    \syndesc{application de type}
+  \synor      prim \, \vec{\term}
+    \syndesc{application de primitives}
+%  \synor      \kw{letrec} \vec{\var_i : \ty_i = \term_i} \kw{in} \term
+  \synor      \kw{switch} \term \kw{in} \vec{b} : \ty
+    \syndesc{aiguillage}
+  \synor      \kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2
+    \syndesc{ouverture d'un bloc}
+\end{align*}
+\caption{Syntaxe des termes}
+\end{figure}
+
+\begin{figure}
+\begin{align*}
+  \syn{b} n \rightarrow \term \; | \; b
+    \syndesc{cas constant}
+  \synor  \_ \rightarrow \term
+    \syndesc{cas par défaut}
+  \synor  \emptyset
+    \syndesc{absence de cas par défaut}
+\end{align*}
+\caption{Clauses de branchement}
+\end{figure}
+
+\begin{figure}
+\begin{align*}
+  \syn{\ty_1, \ty_2} \tyvar, \beta
+    \syndesc{variables de type}
+  \synor  \ty_1 \rightarrow \ty_2
+    \syndesc{type flèche}
+  \synor  \forall \tyvar. \ty
+    \syndesc{quantification universelle}
+  \synor  D
+    \syndesc{type construit}
+  \synor  \{ \var \}_D
+    \syndesc{type \emph{singleton}}
+  \synor  \kw{Tag}_z \var
+    \syndesc{type du \emph{tag} d'un \emph{singleton}}
+  \synor  \{ n: \vec{\ty} \}
+    \syndesc{type d'un bloc immédiat}
+  \\
+  \syn{D} \epsilon \, \vec{\ty}
+    \syndesc{constructeur paramétré}
+\end{align*}
+\caption{Syntaxe des types}
+\end{figure}
+
+\begin{figure}
+\begin{align*}
+  \syn{C} C \wedge C
+    \syndesc{conjonction}
+  \synor  \ty_1 = \ty_2
+    \syndesc{égalité de types}
+  \synor  \kw{tag} \var \in S
+    \syndesc{restriction d'un \emph{tag}}
+  \synor  \top
+    \syndesc{Vrai}
+  \synor  \bot
+    \syndesc{Faux}
+\end{align*}
+\caption{Syntaxe des contraintes}
+\end{figure}
+
+\begin{figure}
+\begin{align*}
+  \syn{S} \emptyset
+    \syndesc{ensemble vide}
+  \synor  \{ k_1, \ldots, k_n \}
+    \syndesc{ensemble fini}
+  \synor  \lnot \{ k_1, \ldots, k_n \}
+    \syndesc{complémentaire}
+\end{align*}
+\caption{Ensemble de \emph{tags}}
+\end{figure}
+
+\begin{figure}
+\begin{align*}
+  \syn{\tyenv} .
+    \syndesc{contexte vide}
+  \synor \tyenv \binding{\var}{\ty}
+    \syndesc{liaison de terme}
+  \synor \tyenv \binding{\alpha}{*}
+    \syndesc{liaison de type}
+\end{align*}
+\caption{Syntaxe des contextes}
+\end{figure}
+
+\begin{figure}
+\begin{align*}
+  \syn{prim} \kw{makeblock}_{n,D}
+    \syndesc{allocation d'un bloc}
+  \synor \kw{tagof}
+    \syndesc{extraction d'un \emph{tag}}
+  \synor \kw{field}_{n}
+    \syndesc{projection d'un champ}
+  \synor \kw{eq}_{z}
+    \syndesc{égalité}
+  \synor \kw{lt}_{z}
+    \syndesc{infériorité}
+  \synor \kw{isint}
+    \syndesc{test d'entier}
+  \synor \kw{isout}_{[z1,z2]}
+    \syndesc{test d'intervalle}
+  \synor \kw{shift}_{z}
+    \syndesc{décalage constant}
+\end{align*}
+\caption{Primitives du langage}
+\end{figure}
+
+\pagebreak
+
+\section{Règles de typage}
+
+\begin{mathpar}
+
+\infer{
+  \tyenvmem{\binding\var\ty}\tyenv
+}{
+  \tycheck\tyenv\var\ty
+}
+
+\infer{
+  \tycheck{\csenv, \tyenvcons\tyenv\var{\ty_1}}{\term}{\ty_2}
+}{
+  \tycheck{\csenv, \tyenv}{\lam{\binding\var{\ty_1}}{\term}}{\tyarrow{\ty_1}{\ty_2}}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term_1}{\tyarrow{\ty_1}{\ty_2}} \\
+  \tycheck{\csenv, \tyenv}{\term_2}{\ty_1}
+}{
+  \tycheck{\csenv, \tyenv}{\term_1 \term_2}{\ty_2}
+}
+
+%\infer{
+%  \forall i.\; \tycheck{\csenv, \tyenvcons{\tyenv}{\forall j.\, \var_j}{\ty_j}}{\term_i}{\ty_i} \\
+%  \tycheck{\csenv, \tyenvcons{\tyenv}{\forall j.\, \var_j}{\ty_j}}{\term}{\ty}
+%}{
+%  \tycheck{\csenv, \tyenv}{\kw{letrec} (\var_i : \ty_i = \term_i) \kw{in} \term}{\ty}
+%}
+
+\\
+
+\infer{
+  \tycheck{\csenv, \tyenvcons{\tyenv}{\tyvar}{\tykind}}{\term}{\ty}
+}{
+  \tycheck{\csenv, \tyenv}{\Lambda \tyvar . \term }{\forall \tyvar.\, \ty}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\forall \tyvar.\, \ty_1}
+}{
+  \tycheck{\csenv, \tyenv}{\term \, \ty_2}{\ty_1 \{\tyvar \leftarrow \ty_2\}}
+}
+
+\\
+
+\infer{
+  x \notin \kw{dom}(\tyenv) \\ x \notin \kw{FV}(\ty) \\
+  \tycheck{\csenv, \tyenv}{\term_1}{D} \\
+  \tycheck{\csenv, \tyenvcons{\tyenv}
+                             {\var}{ \{ \var \}_D }}
+          {\term_2}{\ty}
+}{
+  \tycheck{\csenv, \tyenv}{\kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2}{\ty} \\
+}
+
+\\
+
+\infer{
+  k \in dom(D) \\
+  \tycheck{\csenv \wedge \kw{tag} \var \in \{ k \} \wedge D k, \tyenv}{\term}{\ty} \\
+  \tycheck{\csenv \wedge \kw{tag} \var \in \lnot \{ k \}, x, D, \tyenv}{\vec{b}}{\ty}
+}{
+  \tycheck{\csenv, \tyenv, x, D}{k \rightarrow \term \;|\; \vec{b}}{\ty}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\ty}
+}{
+  \tycheck{\csenv, \tyenv, x, D}{\_ \rightarrow \term}{\ty}
+}
+
+\infer{
+  %FIXME: from constraints, we deduce tag = empty%
+  \csenv \Vdash dom(D) \cap \kw{tag} x = \emptyset
+}{
+  \tycheck{\csenv, \tyenv, x, D}{\emptyset}{\ty}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\{ \var \}_D} \\
+  \tycheck{\csenv, \tyenv, \var, D}{\vec{b}}{\ty}
+}{
+  \tycheck{\csenv, \tyenv}{\kw{switch} \term \kw{in} \vec{b}}{\ty}
+}
+
+\end{mathpar}
+
+\section{Type des primitives}
+\begin{mathpar}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\{ \var \}_D}
+}{
+  \tycheck{\csenv, \tyenv}{\kw{tagof} \term}{\kw{Tag} \{ \var \}_D}
+}
+
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\{ k: \vec{\ty_n} \}}
+}{
+  \tycheck{\csenv, \tyenv}{\kw{field}_i \term}{\ty_i}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\{ k: \vec{\ty_n} \}}
+}{
+  \tycheck{\csenv, \tyenv}{\kw{field}_i \term}{\ty_i}
+}
+
+\infer{
+  k \in dom(D) \\
+  \tycheck{\forall i. \, \csenv, \tyenv}{\term_i}{D_{k,i}} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{makeblock}_{k,D} \vec{\term_n}}{D}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \var} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{shift}_k \term}{\kw{Tag}_{z+k} \var}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag} \var} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{isint} \term}{\kw{IsInt}(x,D)}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \var} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{eq}_k \term}{\operatorname{Eq}(k-z,x,D)}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \var} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{lt}_k \term}{\operatorname{Lt}(k-z,x,D)}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \var} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{isout}_{[z1,z2]} \term}{\operatorname{IsOut}(z1-z,z2-z,x,D)}
+}
+
+\end{mathpar}
+
+\section{Constructeurs de types}
+
+\begin{align*}
+  \syn{\rho} k \rightarrow \vec{\ty} \,;\, \rho
+  \synor \ldots
+  \synor \emptyset
+\end{align*}
+
+Soit $\epsilon$ l'ensemble des noms des constructeurs de types. \\
+On suppose l'existence d'une fonction 
+$\delta : \epsilon \times \vec{\ty} \to \rho$.
+
+\section{Sémantique des contraintes}
+
+\section{Sémantique opérationnelle}
+
+\begin{mathpar} \\
+
+\redto{\app{(\lambda \binding{\var}{\ty} . \term)}{\val}}
+      {\term\{ \var \leftarrow \val\}}
+\\
+
+\infer{
+  \redto{\term_1}{\term'_1}
+}{
+  \redto{\app{\val}{\term_1}}{\app{\val}{\term'_1}}
+}
+\\
+
+\infer{
+  \redto{\term_1}{\term'_1}
+}{
+  \redto{\app{\term_1}{\term_2}}{\app{\term'_1}{\term_2}}
+}
+\\
+
+\infer{
+  \redto{\term_1}{\term'_1}
+}{
+  \redto{\kw{switch} \term_1 \kw{in} \vec{b}}{\kw{switch} \term'_1 \kw{in} \vec{b}}
+}
+\\
+
+\infer{
+  \redto{\term_1}{\term'_1}
+}{
+  \redto{\kw{switch} \term_1 \kw{in} \vec{b}}{\kw{switch} \term'_1 \kw{in} \vec{b}}
+}
+\\
+
+\infer{
+  \kw{tagof} \val = k
+}{
+  \redto{\kw{switch} \val \kw{in} k \rightarrow \term \pator \vec{b}}
+        {\term}
+}
+\\
+
+\infer{
+  \kw{tagof} \val \neq k
+}{
+  \redto{\kw{switch} \val \kw{in} k \rightarrow \term \pator \vec{b}}
+        {\kw{switch} \val \kw{in} \vec{b}}
+}
+\\
+
+\redto{\kw{switch} \val \kw{in} \_ \rightarrow \term}
+      {\term}
+\\
+
+\infer{
+  \redto{\term_1}{\term'_1}
+}{
+  \redto{\kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2}
+        {\kw{unpack} \term'_1 \kw{as} \var \kw{in} \term_2}
+}
+\\
+
+\redto{\kw{unpack} \val \kw{as} \var \kw{in} \term_2}
+      {\term_2\{\var \leftarrow \val\}}
+\\
+
+% Erase types
+\redto{\Lambda \tyvar . \term}{\term}
+
+\redto{\term \, \ty}{\term}
+\\
+
+\infer{
+  \redto{\vec{\term}}{\vec{\term'}}
+}{
+  \redto{\app{prim}{\vec{\term}}}{\app{prim}{\vec{\term'}}}
+}
+\\
+
+\end{mathpar}
+
+\section{Réduction des primitives}
+
+\begin{mathpar} \\
+
+\redto{\kw{makeblock}_{k,\ty} \vec{v}}{\{k: \vec{v}\}} \\
+
+
+\redto{\kw{field}_i \{k: \vec{v}\}}{v_i} \\
+
+
+\redto{\kw{shift}_z k}{z + k} \\
+
+
+\redto{\kw{tagof} k}{k}
+
+\redto{\kw{tagof} \{k: \vec{v}\}}{k} \\
+
+
+\infer{ [k] = z }
+      { \redto{\kw{eq}_z k}{1} }
+
+\infer{ [k] \neq z }
+      { \redto{\kw{eq}_z k}{0} }
+\\
+
+
+\infer{ [k] \le z }
+      { \redto{\kw{lt}_z k}{1} }
+
+\infer{ [k] \nless z }
+      { \redto{\kw{lt}_z k}{0} }
+\\
+
+
+\redto{\kw{isint} k}{1}
+
+\redto{\kw{isint} \{k: \vec{v}\}}{0}
+\\
+
+\infer{ [k] \in [k_1,k_2] }
+      { \redto{\kw{isout}_{[k_1,k_2]} k}{0} }
+
+\infer{ [k] \notin [k_1,k_2] }
+      { \redto{\kw{isout}_{[k_1,k_2]} k}{1} }
+\\
+
+\end{mathpar}
+
+\section{Formation des contextes}
+
+\begin{mathpar}
+\infer{ }{ \vdash . }
+
+\infer{
+  \vdash \tyenv \\
+  \tyenv \vdash \ty
+}{
+  \vdash \tyenvcons\tyenv{\var}{\ty}
+}
+
+\infer{
+  \vdash \tyenv \\
+  \tyenv \vdash D
+}{
+  \vdash \tyenvcons\tyenv{\var}{\{ \var \}_D}
+}
+\end{mathpar}
+
