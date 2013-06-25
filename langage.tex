@@ -43,6 +43,14 @@
 % Operation semantic
 \newcommand\redto[2]{#1 \longrightarrow #2}
 
+% Naming rules
+\newcommand\rname[1]{\;\;\textsc{{\small(#1)}}}
+\newcommand\rref[1]{\textsc{\small#1}}
+\newcommand\rcase[1]{\paragraph{Cas \rref{#1}:}}
+
+\newtheorem{thm}{Théorème}
+\newtheorem{lemma}{Lemme}
+
 \chapter{Langage proposé}
 
 \section{Syntaxe}
@@ -61,7 +69,6 @@
     \syndesc{application de type}
   \synor      prim \, \vec{\term}
     \syndesc{application de primitives}
-%  \synor      \kw{letrec} \vec{\var_i : \ty_i = \term_i} \kw{in} \term
   \synor      \kw{switch} \term \kw{in} \vec{b} : \ty
     \syndesc{aiguillage}
   \synor      \kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2
@@ -137,9 +144,9 @@
 \begin{align*}
   \syn{\tyenv} .
     \syndesc{contexte vide}
-  \synor \tyenv \binding{\var}{\ty}
+  \synor \tyenvcons\tyenv{\var}{\ty}
     \syndesc{liaison de terme}
-  \synor \tyenv \binding{\alpha}{*}
+  \synor \tyenvcons\tyenv{\alpha}{*}
     \syndesc{liaison de type}
 \end{align*}
 \caption{Syntaxe des contextes}
@@ -169,301 +176,9 @@
 
 \pagebreak
 
-\section{Règles de typage}
+\section{Système de type}
 
-\begin{mathpar}
-
-\infer{
-  \tyenvmem{\binding\var\ty}\tyenv
-}{
-  \tycheck\tyenv\var\ty
-}
-
-\infer{
-  \tycheck{\csenv, \tyenvcons\tyenv\var{\ty_1}}{\term}{\ty_2}
-}{
-  \tycheck{\csenv, \tyenv}{\lam{\binding\var{\ty_1}}{\term}}{\tyarrow{\ty_1}{\ty_2}}
-}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term_1}{\tyarrow{\ty_1}{\ty_2}} \\
-  \tycheck{\csenv, \tyenv}{\term_2}{\ty_1}
-}{
-  \tycheck{\csenv, \tyenv}{\term_1 \term_2}{\ty_2}
-}
-
-%\infer{
-%  \forall i.\; \tycheck{\csenv, \tyenvcons{\tyenv}{\forall j.\, \var_j}{\ty_j}}{\term_i}{\ty_i} \\
-%  \tycheck{\csenv, \tyenvcons{\tyenv}{\forall j.\, \var_j}{\ty_j}}{\term}{\ty}
-%}{
-%  \tycheck{\csenv, \tyenv}{\kw{letrec} (\var_i : \ty_i = \term_i) \kw{in} \term}{\ty}
-%}
-
-\\
-
-\infer{
-  \tycheck{\csenv, \tyenvcons{\tyenv}{\tyvar}{\tykind}}{\term}{\ty}
-}{
-  \tycheck{\csenv, \tyenv}{\Lambda \tyvar . \term }{\forall \tyvar.\, \ty}
-}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\forall \tyvar.\, \ty_1}
-}{
-  \tycheck{\csenv, \tyenv}{\term \, \ty_2}{\ty_1 \{\tyvar \leftarrow \ty_2\}}
-}
-
-\\
-
-\infer{
-  x \notin \kw{dom}(\tyenv) \\ x \notin \kw{FV}(\ty) \\
-  \tycheck{\csenv, \tyenv}{\term_1}{D} \\
-  \tycheck{\csenv, \tyenvcons{\tyenv}
-                             {\var}{ \{ \var \}_D }}
-          {\term_2}{\ty}
-}{
-  \tycheck{\csenv, \tyenv}{\kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2}{\ty} \\
-}
-
-\\
-
-\infer{
-  k \in dom(D) \\
-  \tycheck{\csenv \wedge \kw{tag} \var \in \{ k \} \wedge D k, \tyenv}{\term}{\ty} \\
-  \tycheck{\csenv \wedge \kw{tag} \var \in \lnot \{ k \}, x, D, \tyenv}{\vec{b}}{\ty}
-}{
-  \tycheck{\csenv, \tyenv, x, D}{k \rightarrow \term \;|\; \vec{b}}{\ty}
-}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\ty}
-}{
-  \tycheck{\csenv, \tyenv, x, D}{\_ \rightarrow \term}{\ty}
-}
-
-\infer{
-  %FIXME: from constraints, we deduce tag = empty%
-  \csenv \Vdash dom(D) \cap \kw{tag} x = \emptyset
-}{
-  \tycheck{\csenv, \tyenv, x, D}{\emptyset}{\ty}
-}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\{ \var \}_D} \\
-  \tycheck{\csenv, \tyenv, \var, D}{\vec{b}}{\ty}
-}{
-  \tycheck{\csenv, \tyenv}{\kw{switch} \term \kw{in} \vec{b}}{\ty}
-}
-
-\end{mathpar}
-
-\section{Type des primitives}
-\begin{mathpar}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\{ \var \}_D}
-}{
-  \tycheck{\csenv, \tyenv}{\kw{tagof} \term}{\kw{Tag} \{ \var \}_D}
-}
-
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\{ k: \vec{\ty_n} \}}
-}{
-  \tycheck{\csenv, \tyenv}{\kw{field}_i \term}{\ty_i}
-}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\{ k: \vec{\ty_n} \}}
-}{
-  \tycheck{\csenv, \tyenv}{\kw{field}_i \term}{\ty_i}
-}
-
-\infer{
-  k \in dom(D) \\
-  \tycheck{\forall i. \, \csenv, \tyenv}{\term_i}{D_{k,i}} \\
-}{
-  \tycheck{\csenv, \tyenv}{\kw{makeblock}_{k,D} \vec{\term_n}}{D}
-}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \var} \\
-}{
-  \tycheck{\csenv, \tyenv}{\kw{shift}_k \term}{\kw{Tag}_{z+k} \var}
-}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag} \var} \\
-}{
-  \tycheck{\csenv, \tyenv}{\kw{isint} \term}{\kw{IsInt}(x,D)}
-}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \var} \\
-}{
-  \tycheck{\csenv, \tyenv}{\kw{eq}_k \term}{\operatorname{Eq}(k-z,x,D)}
-}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \var} \\
-}{
-  \tycheck{\csenv, \tyenv}{\kw{lt}_k \term}{\operatorname{Lt}(k-z,x,D)}
-}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \var} \\
-}{
-  \tycheck{\csenv, \tyenv}{\kw{isout}_{[z1,z2]} \term}{\operatorname{IsOut}(z1-z,z2-z,x,D)}
-}
-
-\end{mathpar}
-
-\section{Constructeurs de types}
-
-\begin{align*}
-  \syn{\rho} k \rightarrow \vec{\ty} \,;\, \rho
-  \synor \ldots
-  \synor \emptyset
-\end{align*}
-
-Soit $\epsilon$ l'ensemble des noms des constructeurs de types. \\
-On suppose l'existence d'une fonction 
-$\delta : \epsilon \times \vec{\ty} \to \rho$.
-
-\section{Sémantique des contraintes}
-
-\section{Sémantique opérationnelle}
-
-\begin{mathpar} \\
-
-\redto{\app{(\lambda \binding{\var}{\ty} . \term)}{\val}}
-      {\term\{ \var \leftarrow \val\}}
-\\
-
-\infer{
-  \redto{\term_1}{\term'_1}
-}{
-  \redto{\app{\val}{\term_1}}{\app{\val}{\term'_1}}
-}
-\\
-
-\infer{
-  \redto{\term_1}{\term'_1}
-}{
-  \redto{\app{\term_1}{\term_2}}{\app{\term'_1}{\term_2}}
-}
-\\
-
-\infer{
-  \redto{\term_1}{\term'_1}
-}{
-  \redto{\kw{switch} \term_1 \kw{in} \vec{b}}{\kw{switch} \term'_1 \kw{in} \vec{b}}
-}
-\\
-
-\infer{
-  \redto{\term_1}{\term'_1}
-}{
-  \redto{\kw{switch} \term_1 \kw{in} \vec{b}}{\kw{switch} \term'_1 \kw{in} \vec{b}}
-}
-\\
-
-\infer{
-  \kw{tagof} \val = k
-}{
-  \redto{\kw{switch} \val \kw{in} k \rightarrow \term \pator \vec{b}}
-        {\term}
-}
-\\
-
-\infer{
-  \kw{tagof} \val \neq k
-}{
-  \redto{\kw{switch} \val \kw{in} k \rightarrow \term \pator \vec{b}}
-        {\kw{switch} \val \kw{in} \vec{b}}
-}
-\\
-
-\redto{\kw{switch} \val \kw{in} \_ \rightarrow \term}
-      {\term}
-\\
-
-\infer{
-  \redto{\term_1}{\term'_1}
-}{
-  \redto{\kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2}
-        {\kw{unpack} \term'_1 \kw{as} \var \kw{in} \term_2}
-}
-\\
-
-\redto{\kw{unpack} \val \kw{as} \var \kw{in} \term_2}
-      {\term_2\{\var \leftarrow \val\}}
-\\
-
-% Erase types
-\redto{\Lambda \tyvar . \term}{\term}
-
-\redto{\term \, \ty}{\term}
-\\
-
-\infer{
-  \redto{\vec{\term}}{\vec{\term'}}
-}{
-  \redto{\app{prim}{\vec{\term}}}{\app{prim}{\vec{\term'}}}
-}
-\\
-
-\end{mathpar}
-
-\section{Réduction des primitives}
-
-\begin{mathpar} \\
-
-\redto{\kw{makeblock}_{k,\ty} \vec{v}}{\{k: \vec{v}\}} \\
-
-
-\redto{\kw{field}_i \{k: \vec{v}\}}{v_i} \\
-
-
-\redto{\kw{shift}_z k}{z + k} \\
-
-
-\redto{\kw{tagof} k}{k}
-
-\redto{\kw{tagof} \{k: \vec{v}\}}{k} \\
-
-
-\infer{ [k] = z }
-      { \redto{\kw{eq}_z k}{1} }
-
-\infer{ [k] \neq z }
-      { \redto{\kw{eq}_z k}{0} }
-\\
-
-
-\infer{ [k] \le z }
-      { \redto{\kw{lt}_z k}{1} }
-
-\infer{ [k] \nless z }
-      { \redto{\kw{lt}_z k}{0} }
-\\
-
-
-\redto{\kw{isint} k}{1}
-
-\redto{\kw{isint} \{k: \vec{v}\}}{0}
-\\
-
-\infer{ [k] \in [k_1,k_2] }
-      { \redto{\kw{isout}_{[k_1,k_2]} k}{0} }
-
-\infer{ [k] \notin [k_1,k_2] }
-      { \redto{\kw{isout}_{[k_1,k_2]} k}{1} }
-\\
-
-\end{mathpar}
-
-\section{Formation des contextes}
+\subsection{Formation des contextes}
 
 \begin{mathpar}
 \infer{ }{ \vdash . }
@@ -482,4 +197,533 @@ $\delta : \epsilon \times \vec{\ty} \to \rho$.
   \vdash \tyenvcons\tyenv{\var}{\{ \var \}_D}
 }
 \end{mathpar}
+
+\subsection{Règles de typage}
+
+\begin{mathpar}
+%
+\infer{
+  \tyenvmem{\binding\var\ty}\tyenv
+}{
+  \tycheck\tyenv\var\ty
+}\rname{T-Var}
+
+\infer{
+  \tycheck{\csenv, \tyenvcons\tyenv\var{\ty_1}}{\term}{\ty_2}
+}{
+  \tycheck{\csenv, \tyenv}{\lam{\binding\var{\ty_1}}{\term}}{\tyarrow{\ty_1}{\ty_2}}
+}\rname{T-Abs}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term_1}{\tyarrow{\ty_1}{\ty_2}} \\
+  \tycheck{\csenv, \tyenv}{\term_2}{\ty_1}
+}{
+  \tycheck{\csenv, \tyenv}{\term_1 \term_2}{\ty_2}
+}\rname{T-App}
+\\
+%
+\infer{
+  \tycheck{\csenv, \tyenvcons{\tyenv}{\tyvar}{\tykind}}{\term}{\ty}
+}{
+  \tycheck{\csenv, \tyenv}{\Lambda \tyvar . \term }{\forall \tyvar.\, \ty}
+}\rname{T-TApp}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\forall \tyvar.\, \ty_1}
+}{
+  \tycheck{\csenv, \tyenv}{\term \, \ty_2}{\ty_1 \{\tyvar \leftarrow \ty_2\}}
+}\rname{T-TAbs}
+\\
+%
+\infer{
+  x \notin \kw{dom}(\tyenv) \\ x \notin \kw{FV}(\ty) \\
+  \tycheck{\csenv, \tyenv}{\term_1}{D} \\
+  \tycheck{\csenv, \tyenvcons{\tyenv}
+                             {\var}{ \{ \var \}_D }}
+          {\term_2}{\ty}
+}{
+  \tycheck{\csenv, \tyenv}{\kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2}{\ty} \\
+}\rname{T-Unpack}
+\\
+%
+\infer{
+  k \in dom(D) \\
+  \tycheck{\csenv \wedge \kw{tag} \var \in \{ k \} \wedge D k, \tyenv}{\term}{\ty} \\
+  \tycheck{\csenv \wedge \kw{tag} \var \in \lnot \{ k \}, x, D, \tyenv}{\vec{b}}{\ty}
+}{
+  \tycheck{\csenv, \tyenv, x, D}{k \rightarrow \term \;|\; \vec{b}}{\ty}
+}\rname{T-PatTag}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\ty}
+}{
+  \tycheck{\csenv, \tyenv, x, D}{\_ \rightarrow \term}{\ty}
+}\rname{T-PatWildcard}
+
+\infer{
+  \csenv \Vdash dom(D) \cap \kw{tag} x = \emptyset
+}{
+  \tycheck{\csenv, \tyenv, x, D}{\emptyset}{\ty}
+}\rname{T-PatEmpty}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\{ \var \}_D} \\
+  \tycheck{\csenv, \tyenv, \var, D}{\vec{b}}{\ty}
+}{
+  \tycheck{\csenv, \tyenv}{\kw{switch} \term \kw{in} \vec{b}}{\ty}
+}\rname{T-Switch}
+
+\end{mathpar}
+
+\subsection{Type des primitives}
+
+\begin{mathpar}
+%
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\{ \var \}_D}
+}{
+  \tycheck{\csenv, \tyenv}{\kw{tagof} \term}{\kw{Tag} \{ \var \}_D}
+}\rname{T-tagof}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\{ k: \vec{\ty_n} \}}
+}{
+  \tycheck{\csenv, \tyenv}{\kw{field}_i \term}{\ty_i}
+}\rname{T-field-imm}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\{ \var \}_D} \\
+  \csenv, \tyenv \Vdash \kw{tagof} \var \in \{ k \} \\
+  D(k) = \vec{\ty_n}
+}{
+  \tycheck{\csenv, \tyenv}{\kw{field}_i \term}{\ty_i}
+}\rname{T-field}
+
+\infer{
+  k \in dom(D) \\
+  \tycheck{\forall i. \, \csenv, \tyenv}{\term_i}{D_{k,i}} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{makeblock}_{k,D} \vec{\term_n}}{D}
+}\rname{T-makeblock}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \var} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{shift}_k \term}{\kw{Tag}_{z+k} \var}
+}\rname{T-shift}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag} \var} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{isint} \term}{\kw{IsInt}(x,D)}
+}\rname{T-isint}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \var} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{eq}_k \term}{\operatorname{Eq}(k-z,x,D)}
+}\rname{T-eq}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \var} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{lt}_k \term}{\operatorname{Lt}(k-z,x,D)}
+}\rname{T-lt}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \var} \\
+}{
+  \tycheck{\csenv, \tyenv}{\kw{isout}_{[z1,z2]} \term}{\operatorname{IsOut}(z1-z,z2-z,x,D)}
+}\rname{T-isout}
+
+\end{mathpar}
+
+\subsection{Constructeurs de types}
+
+\begin{align*}
+  \syn{\rho} k \rightarrow C, \vec{\ty} \,;\, \rho
+  \synor \ldots
+  \synor \emptyset
+\end{align*}
+
+Soit $\epsilon$ l'ensemble des noms des constructeurs de types. \\
+On suppose l'existence d'une fonction 
+$\delta : \epsilon \times \vec{\ty} \to \rho$.
+
+\todo{Meta constructeurs : IsInt, IsOut, Lt, Eq}
+%TODO \section{Sémantique des contraintes}
+
+\section{Sémantique opérationnelle}
+
+\begin{mathpar}
+%
+\infer{}{
+  \redto{\app{(\lambda \binding{\var}{\ty} . \term)}{\val}}
+        {\term\{ \var \leftarrow \val\}}
+}\rname{R-App}
+\\
+
+\infer{
+  \redto{\term_1}{\term'_1}
+}{
+  \redto{\app{\val}{\term_1}}{\app{\val}{\term'_1}}
+}\rname{R-App-1}
+
+\infer{
+  \redto{\term_1}{\term'_1}
+}{
+  \redto{\app{\term_1}{\term_2}}{\app{\term'_1}{\term_2}}
+}\rname{R-App-2}
+\\
+
+\infer{
+  \redto{\term}{\term'}
+}{
+  \redto{\term \, \ty}{\term' \, \ty}
+}\rname{R-TApp-1}
+
+\infer{}{
+\redto{(\Lambda \tyvar . \term) \ty}{\term \{ \tyvar \leftarrow \ty \}}
+}\rname{R-TApp}
+%
+\end{mathpar}
+%
+\begin{mathpar}
+%
+\infer{
+  \redto{\term_1}{\term'_1}
+}{
+  \redto{\kw{switch} \term_1 \kw{in} \vec{b}}{\kw{switch} \term'_1 \kw{in} \vec{b}}
+}\rname{R-Switch-1}
+
+\infer{}{
+  \redto{\kw{switch} \val \kw{in} \_ \rightarrow \term}
+        {\term}
+}\rname{R-PatWildcard}
+\\
+%
+\infer{
+  \kw{tagof} \val = k
+}{
+  \redto{\kw{switch} \val \kw{in} k \rightarrow \term \pator \vec{b}}
+        {\term}
+}\rname{R-PatMatch}
+
+\infer{
+  \kw{tagof} \val \neq k
+}{
+  \redto{\kw{switch} \val \kw{in} k \rightarrow \term \pator \vec{b}}
+        {\kw{switch} \val \kw{in} \vec{b}}
+}\rname{R-PatFail}
+%
+\end{mathpar}
+%
+\begin{mathpar}
+%
+\infer{
+  \redto{\term_1}{\term'_1}
+}{
+  \redto{\kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2}
+        {\kw{unpack} \term'_1 \kw{as} \var \kw{in} \term_2}
+}\rname{R-Unpack-1}
+\\
+
+\infer{}{
+  \redto{\kw{unpack} \val \kw{as} \var \kw{in} \term_2}
+        {\term_2\{\var \leftarrow \val\}}
+}\rname{R-Unpack}
+\\
+
+\infer{
+  \redto{\vec{\term}}{\vec{\term'}}
+}{
+  \redto{\app{prim}{\vec{\term}}}{\app{prim}{\vec{\term'}}}
+}\rname{R-Prim}
+\\
+
+\end{mathpar}
+
+\subsection{Réduction des primitives}
+
+\begin{mathpar}
+%
+\infer{}{
+  \redto{\kw{makeblock}_{k,\ty} \vec{v}}{\{k: \vec{v}\}}
+}\rname{R-makeblock}
+
+\infer{}{
+  \redto{\kw{field}_i \{k: \vec{v}\}}{v_i}
+}\rname{R-field}
+
+\infer{}{
+  \redto{\kw{shift}_z k}{z + k}
+}\rname{R-shift}
+
+\infer{}{
+  \redto{\kw{tagof} k}{k}
+}\rname{R-tagof-int}
+
+\infer{}{
+  \redto{\kw{tagof} \{k: \vec{v}\}}{k}
+}\rname{R-tagof-block}
+
+\infer{ k = z }
+      { \redto{\kw{eq}_z k}{1} }
+\rname{R-eq-1}
+
+\infer{ k \neq z }
+      { \redto{\kw{eq}_z k}{0} }
+\rname{R-eq-0}
+
+\infer{ k \le z }
+      { \redto{\kw{lt}_z k}{1} }
+\rname{R-less-1}
+
+\infer{ k \nless z }
+      { \redto{\kw{lt}_z k}{0} }
+\rname{R-less-0}
+
+\infer{}{
+  \redto{\kw{isint} k}{1}
+}\rname{R-isint-1}
+
+\infer{}{
+  \redto{\kw{isint} \{k: \vec{v}\}}{0}
+}\rname{R-isint-0}
+
+\infer{ k \notin [k_1,k_2] }
+      { \redto{\kw{isout}_{[k_1,k_2]} k}{1} }
+\rname{R-isout-1}
+
+\infer{ k \in [k_1,k_2] }
+      { \redto{\kw{isout}_{[k_1,k_2]} k}{0} }
+\rname{R-isout-0}
+
+\end{mathpar}
+
+\section{Définition de la substitution}
+
+\newcommand\subst{\{\var \leftarrow v\}}
+\begin{align*}
+           C \wedge C \subst \;&\Rightarrow\; C\subst \wedge C\subst        \\
+    \term_1 = \term_2 \subst \;&\Rightarrow\; \term_1\subst = \term_2\subst \\
+  \kw{tag} \var \in S \subst \;&\Rightarrow\; \top \\
+  \kw{tag} y    \in S \subst \;&\Rightarrow\; \kw{tag} y \in S \\
+                 \top \subst \;&\Rightarrow\; \top \\
+                 \bot \subst \;&\Rightarrow\; \bot \\
+\end{align*}
+
+\begin{align*}
+                            . \subst \;&\Rightarrow\; . \\
+     \tyenvcons\tyenv{y}{\ty} \subst \;&\Rightarrow\; \tyenvcons\tyenv{y}{\ty \subst} \\
+  \tyenvcons\tyenv{\alpha}{*} \subst \;&\Rightarrow\; \tyenvcons\tyenv{\alpha}{*} 
+\end{align*}
+
+\begin{align*}
+                            . \subst \;&\Rightarrow\; . \\
+     \tyenvcons\tyenv{y}{\ty} \subst \;&\Rightarrow\; \tyenvcons\tyenv{y}{\ty \subst} \\
+  \tyenvcons\tyenv{\alpha}{*} \subst \;&\Rightarrow\; \tyenvcons\tyenv{\alpha}{*} 
+\end{align*}
+
+\begin{align*}
+  \var
+   \, \subst \;&\Rightarrow\; v
+    \\
+  y
+   \, \subst \;&\Rightarrow\; y
+    \\
+  \term_1 \, \term_2
+   \, \subst \;&\Rightarrow\; \term_1 \subst \, \term_2 \subst
+    \\
+  (\lambda \binding{y}{\ty} . \term)
+   \, \subst \;&\Rightarrow\; \lambda \binding{y}{\ty \subst} . \term \subst
+    \\
+  (\Lambda \tyvar . \term)
+   \, \subst \;&\Rightarrow\; \Lambda \tyvar . \term \subst
+    \\
+  \term \, \ty
+   \, \subst \;&\Rightarrow\; \term \subst \, \ty \subst
+    \\
+  prim \, \vec{\term}
+   \, \subst \;&\Rightarrow\; prim \, \vec{\term'} \; \text{où} \; \term'_i = \term_i \subst
+    \\
+  \kw{switch} \term \kw{in} \vec{b} : \ty
+   \, \subst \;&\Rightarrow\; 
+  \kw{switch} \term \subst \kw{in} \vec{b} \subst : \ty \subst 
+    \\
+  \kw{unpack} \term_1 \kw{as} y \kw{in} \term_2
+   \, \subst \;&\Rightarrow\; 
+  \kw{unpack} \term_1 \subst \kw{as} y \kw{in} \term_2 \subst
+    \\
+\end{align*}
+
+\begin{align*}
+  \ty_1 \rightarrow \ty_2
+   \, \subst \;&\Rightarrow\; 
+    \ty_1 \subst \rightarrow \ty_2 \subst
+  \\
+  \forall \tyvar. \ty
+   \, \subst \;&\Rightarrow\; 
+  \forall \tyvar. (\ty \subst)
+  \\
+  \{ \var \}_D
+   \, \subst \;&\Rightarrow\; 
+    D \, v
+    &\text{où}\; \var = \{ x \}_D
+  \\
+  \kw{Tag}_z \var
+   \, \subst \;&\Rightarrow\; 
+    \kw{tag} D \, v
+    &\text{où}\; \var = \{ x \}_D
+  \\
+  \{ n: \vec{\ty} \}
+    \, \subst \;&\Rightarrow\; 
+    \{ n: \vec{\ty'} \}
+    &\text{où}\; \ty'_i = \ty_i \subst
+  \\
+  \epsilon \, \vec{\ty}
+    \, \subst \;&\Rightarrow\; \epsilon \, \vec{\ty'}
+    &\text{où}\; \ty'_i = \ty_i \subst
+\end{align*}
+
+\section{Propriétés du système de type}
+
+\begin{lemma}[Inversion de la relation de typage]
+\begin{mathpar}
+
+\infer{
+  \tycheck\tyenv\var\ty
+}{
+  \tyenvmem{\binding\var\ty}\tyenv
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\lam{\binding\var{\ty_1}}{\term}}{\ty}
+}{
+  \ty = \tyarrow{\ty_1}{\ty_2} \\
+  \tycheck{\csenv, \tyenvcons\tyenv\var{\ty_1}}{\term}{\ty_2}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term_1 \term_2}{\ty_2}
+}{
+  \tycheck{\csenv, \tyenv}{\term_1}{\tyarrow{\ty_1}{\ty_2}} \\
+  \tycheck{\csenv, \tyenv}{\term_2}{\ty_1}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\Lambda \tyvar . \term }{\ty}
+}{
+  \ty = {\forall \tyvar.\, \ty'} \\
+  \tycheck{\csenv, \tyenvcons{\tyenv}{\tyvar}{\tykind}}{\term}{\ty}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term \, \ty_2}{\ty}
+}{
+  \ty =\ty_1 \{\tyvar \leftarrow \ty_2\} \\
+  \tycheck{\csenv, \tyenv}{\term}{\forall \tyvar.\, \ty_1}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2}{\ty}
+}{
+  x \notin \kw{dom}(\tyenv) \\ x \notin \kw{FV}(\ty) \\
+  \tycheck{\csenv, \tyenv}{\term_1}{D} \\
+  \tycheck{\csenv, \tyenvcons{\tyenv}
+                             {\var}{ \{ \var \}_D }}
+          {\term_2}{\ty}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv, x, D}{k \rightarrow \term \;|\; \vec{b}}{\ty}
+}{
+  k \in dom(D) \\
+  \tycheck{\csenv \wedge \kw{tag} \var \in \{ k \} \wedge D k, \tyenv}{\term}{\ty} \\
+  \tycheck{\csenv \wedge \kw{tag} \var \in \lnot \{ k \}, x, D, \tyenv}{\vec{b}}{\ty}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv, x, D}{\_ \rightarrow \term}{\ty}
+}{
+  \tycheck{\csenv, \tyenv}{\term}{\ty}
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv, x, D}{\emptyset}{\ty}
+}{
+  \csenv, \tyenv \Vdash dom(D) \cap \kw{tag} x = \emptyset
+}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\kw{switch} \term \kw{in} \vec{b}}{\ty}
+}{
+  \tycheck{\csenv, \tyenv}{\term}{\{ \var \}_D} \\
+  \tycheck{\csenv, \tyenv, \var, D}{\vec{b}}{\ty}
+}
+
+\end{mathpar}
+
+\begin{proof}
+  Immédiate par inversion des règles de typage,
+  le système est dirigé par la syntaxe.
+\end{proof}
+\end{lemma}
+
+\pagebreak
+\begin{lemma}[Préservation des types par substitution]
+\begin{mathpar}
+\infer{
+  \tycheck{\csenv, \tyenvcons\tyenv\var{\ty'}}{\term}{\ty} \\
+  \tycheck{\csenv, \tyenv}{\term'}{\ty'}
+}{
+  \tycheck{\csenv, \tyenv}{\term \{ \var \leftarrow \term' \}}{\ty}
+}
+\end{mathpar}
+
+\begin{proof}
+Par induction sur la dérivation du jugement
+  $\tycheck{\csenv, \tyenvcons\tyenv\var{\ty'}}{\term}{\ty}$.
+  
+\rcase{T-Unpack} 
+\begin{equation*}
+\begin{aligned}
+  & \term = \kw{unpack} \term_1 \kw{as} y \kw{in} \term_2 \\
+  & y \notin dom(\tyenvcons\tyenv\var{\ty'}) \\
+  & y \notin FV(\ty) \\
+  & \tycheck{\csenv, \tyenvcons\tyenv\var{\ty'}}{\term_1}{\ty_1} \\
+  & \tycheck{\csenv, \tyenvcons{\tyenvcons\tyenv\var{\ty'}}{y}{\ty_1}}{\term_2}{\ty}
+\end{aligned}
+\end{equation*}
+
+Par hypothèse, $y \neq \var$.
+L'hypothèse d'induction nous permet de déduire 
+  $\tycheck{\csenv, \tyenvcons\tyenv{y}{\ty_1}}{\term_1}{\ty_1}$.
+Par permutation de contexte, on montre
+  $\tycheck{\csenv, \tyenvcons{\tyenvcons\tyenv{y}{\ty_1}}\var{\ty'}}{\term_2}{\ty}$.
+En affaiblissement le contexte de la seconde hypothèse, on obtient
+  $\tycheck{\csenv, \tyenvcons\tyenv{y}{\ty_1}}{\term'}{\ty'}$.
+On peut alors appliquer l'hypothèse d'induction sur le terme $\ty_2$:
+  $\tycheck{\csenv, \tyenvcons\tyenv{y}{\ty_1}}{\term_2\{\var \leftarrow \term'\}}{\ty'}$.
+\\
+On applique alors appliquer $\rref{T-Unpack}$ qui nous donne le résultat attendu.
+  $\tycheck{\csenv, \tyenvcons\tyenv\var{\ty'}}
+           {\kw{unpack} \term_1 \kw{as} y \kw{in} \term_2}{\ty}$.
+
+\rcase{T-Switch}
+\begin{equation*}
+\begin{aligned}
+  & \term = \kw{switch} \term_1 \kw{in} \vec{b} \\
+  & \tycheck{\csenv, \tyenvcons\tyenv\var{\ty'}}{\term_1}{\{y\}_D} \\
+  & \tycheck{\csenv, \tyenvcons\tyenv\var{\ty'}, y, D}{\vec{b}}{\ty}
+\end{aligned}
+\end{equation*}
+
+Ici, deux cas se présentent : soit $y \neq \var$ et le cas est trivial, soit $y = \var$.
+\todo{AHHHAH}.
+
+\rcase{T-}
+
+\end{proof}
+\end{lemma}
 

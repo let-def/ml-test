@@ -1,17 +1,19 @@
 \documentclass[12pt]{report}
 \usepackage{mathpartir}
-\usepackage{amsmath}
+\usepackage[fleqn]{amsmath}
 \usepackage{amssymb}
+\usepackage{amsthm}
 \usepackage{multicol}
 \usepackage[utf8x]{inputenc}
 \usepackage[french]{babel}
 \usepackage{graphicx}
+\usepackage[parfill]{parskip}
 
 \title{Typage d'un lambda-calcul avec une construction de branchements}
 \author{Frédéric Bour, avec l'encadrement de Yann Régis-Gianas}
 
 \newcommand\todo[1]{TODO[#1]}
-\includeonly{langage}
+%\includeonly{langage}
 
 \begin{document}
 
@@ -25,19 +27,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\chapter{Solutions étudiées}
-
-Tout n'est pas nécessaire, points principaux :
-
-\section{Échec du typage structurel}
-
-\subsection{Succès du typage nominal}
-
-- encodage des exceptions
-- encodage des GADTs
-- encodage des variants
-  - traduction du langage ML
-    shift, extraction de tags, …
+\include{structurel}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -48,5 +38,11 @@ Tout n'est pas nécessaire, points principaux :
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \include{langage}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\bibliographystyle{apalike}
+\bibliography{mlt}
 
 \end{document}
