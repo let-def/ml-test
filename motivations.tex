@@ -1,4 +1,4 @@
-\chapter{Motivations}
+\section{Motivations}
 
 Ce TRE a débuté par une étude de la faisabilité d'une analyse statique du
 flot des exceptions pour OCaml 4.00. 
@@ -31,7 +31,7 @@ développer en parallèle un typeur spécialisé.
 Notre travail de recherche s'est alors orienté vers le langage intermédiaire du
 compilateur OCaml. 
 
-\section{\emph{Lambda}, le langage intermédiaire}
+\subsection{\emph{Lambda}, le langage intermédiaire}
 
 Cibler \emph{Lambda} apporte de nombreux avantages, notamment :
 \begin{description}
@@ -72,7 +72,7 @@ analyse viennent d'être effacées dans la chaîne de compilation.
 Concevoir une version de \emph{lambda} préservant les types semble être un
 prérequis pour un outil d'analyse viable.
 
-\section{Vers une version \emph{typée} de \emph{Lambda}}
+\subsection{Vers une version \emph{typée} de \emph{Lambda}}
 
 Le langage \emph{lambda} est un lambda-calcul proposant des fonctions de très
 bas-niveau.
@@ -91,13 +91,13 @@ branchements; des extensions de bas-niveau.
 
 Une autre implantation majeure du langage de programmation fonctionnelle
 Haskell, GHC \cite{Marlow98thenew}, a fait un choix très différent dans la
-conception de son langage intermédiaire nommé \emph{Core}
-\cite{Sulzmann07systemf}.  Ce dernier est typé et n'offre pas de telles
-primitives; les accès mémoires sont masqués derrière une forme simplifiée de
-\emph{filtrage de motifs}. Ce design
-influencera nos choix par la suite.
+conception de son langage intermédiaire nommé \emph{Core}.  Ce dernier n'offre
+pas de telles primitives; les accès mémoires sont masqués derrière une forme
+simplifiée de \emph{filtrage de motifs}. Mais son système de type, System $F_c$
+\cite{Sulzmann07systemf}, permet de vérifier des constructions avancées
+d'Haskell (comme les \emph{GADTs}) que l'on retrouve dans OCaml.
 
-\section{Le typage des constructions de bas-niveau}
+\subsection{Le typage des constructions de bas-niveau}
 
 Les systèmes de types d'OCaml et d'Haskell présentent de nombreuses
 similitudes. La réussite de \emph{Core} nous a conforté dans la faisabilité

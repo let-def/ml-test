@@ -1,13 +1,76 @@
-\chapter{Solutions étudiées}
+\section{Solutions étudiées}
 
-Tout n'est pas nécessaire, points principaux :
+Les premières tentatives cherchaient à ajuster le langage \emph{Lambda} pour
+pouvoir typer l'ensemble des constructions d'OCaml. Ceci m'a permi d'acquérir
+une meilleure compréhension de l'architecture du compilateur et de l'encodage du
+langage source dans les passes intermédiaires.
 
-\section{Échec du typage structurel}
+\subsection{Typage des valeurs}
 
-\subsection{Succès du typage nominal}
+\paragraph{Système de type structurel.}
+Dans OCaml, une représentation unique permet d'encoder toutes les valeurs. Il
+était alors tentant de fournir des type primitifs telles que leur composition
+permettent de typer toutes les valeurs. Cela forme l'essence d'un système de
+type structurel. 
 
-- encodage des exceptions
-- encodage des GADTs
-- encodage des variants
-  - traduction du langage ML
-    shift, extraction de tags, …
+Malheureusement, la typage des valeurs récursives est délicat avec un système
+structurel. Cela conduit usuellement à une définition de la récursion dite
+"équirecursive" : un type est égale à sa version développée. Malheureusement,
+cette formulation s'accompagne de difficulté calculatoire. Les algorithmes de
+calcul de la relation de sous-typage gagnent rapidement en complexité, puis
+devient indécidable.
+
+Sans surprise, seulement un sous-ensemble d'OCaml pouvait se traduire dans un
+tel système. Voici un exemple de type qui pose problème avec un tel encodage :
+
+\begin{lstlisting}
+  type 'a tree = Leaf of 'a | Node of ('a * 'a) tree
+\end{lstlisting}
+
+La récursion non-uniforme (le paramètre $'a$ est transformé en $'a * 'a$ lors de
+la récursion) nécessite la présence de fonctions au niveau des types dans sa
+version structurelle.
+
+\paragraph{Système de type nominal.} 
+Les systèmes de type nominatifs sont la solution classique au problème mentionné
+ci-dessus.  La notion de nom est introduite.  L'algèbre de type peut faire
+référence à ces noms, éventuellement paramétrée.  L'égalité de type devient
+l'égalité de nom.  La relation de sous-typage se définit en annotant les
+paramètres avec une variance.
+
+Une fonction extérieure au système de type est fournie pour développer un nom et
+ses paramètres en un type de l'algèbre, ce qui nous ramène localement à un
+système de type structurel.
+
+L'exemple ci-dessus, déjà exprimé dans le système de type nominal d'OCaml,
+s'encode sans effort. Par ailleurs, les langages de programmation communs
+s'appuient tous sur un système de type nominatif.
+
+\subsection{Typage des contraintes}
+
+La principale difficulté dans le typage de \emph{lambda} est de raffiner le
+contexte en fonction des branches suivies.  Plusieurs pistes ont été suivies.
+
+Ce type d'analyse peut se faire par une forme restreinte de typage dépendant.
+Dans le typage dépendant, les valeurs peuvent intervenir dans les types. Ces
+systèmes de type apporte une très grande expressivité au prix de complications
+lors de la vérification des types. 
+
+\cite{LambdaCube} propose une classification des systèmes de types dépendants en
+fonction de l'ajout en expressivité au lambda-calcul simplement typé.
+
+Nous n'introduisons ici qu'une simple dépendance entre type et identificateurs
+de termes. Un système similaire a été étudié  dans \cite{Odersky02anominal} sous
+le nom de "path-dependent types".
+
+\paragraph{Types à habitant unique.}
+Les types habités par une seule valeur, ou \emph{types singleton}, sont une
+fonctionalité essentielle pour raffiner un type dans une branche.
+Cette garantie d'unicité permet, après le test d'une valeur, de s'assurer que
+son type est localement plus fin. 
+
+Si le type était partagé par plusieurs valeurs potentiellement différente, il
+serait possible d'introduire des incohérences dans le contexte.
+
+Une fois le branchement effectué, cette information est ensuite propagée dans le
+contexte par un système de contrainte.

@@ -129,10 +129,10 @@ Inductive step : tm -> tm -> Prop :=
       value v1 ->
       t2 ==> t2' ->
       tapp v1 t2 ==> tapp v1 t2'
-  | ST_AppABS : forall X v1 T,
+  | ST_APPABS : forall X v1 T,
       value v1 ->
       tAPP (tABS X v1) T ==> subst_ty_tm X T v1
-  | ST_AppABS1 : forall t1 t1' T,
+  | ST_APP1 : forall t1 t1' T,
       t1 ==> t1' ->
       tAPP t1 T ==> tAPP t1' T
   | ST_ABS : forall X t1 t1',
@@ -163,14 +163,14 @@ Proof.
   eapply multi_step.
     apply ST_ABS.
     apply ST_App1.
-    apply ST_AppABS.
+    apply ST_APPABS.
     auto.
   eapply multi_step.
     simpl.
     apply ST_ABS.
     apply ST_App2.
     auto.
-    apply ST_AppABS.
+    apply ST_APPABS.
     auto.
   eapply multi_step.
     simpl.
@@ -187,9 +187,9 @@ Inductive binding :=
   | TyFree : Id.t ty -> binding.
 
 Definition t := list binding.
-Definition empty : t := nil.
 
-Inductive unbound : forall A : Type, Id.t A -> t -> Prop :=
+Definition empty : t := nil.
+(*Inductive unbound : forall A : Type, Id.t A -> t -> Prop :=
   | U_Empty : forall A id, unbound A id empty
   | U_TmVar : forall id1 id2 ty' ct,
       id1 <> id2 ->
@@ -228,7 +228,7 @@ Inductive bound_ty : Id.t ty -> t -> Prop :=
       bound_ty id1 (TyFree id2 :: ctx)
   | B_TyStepTm : forall id1 id2 ty2 ctx,
       bound_ty id1 ctx ->
-      bound_ty id1 (TmVar id2 ty2 :: ctx).
+      bound_ty id1 (TmVar id2 ty2 :: ctx).*)
 
 Definition extend (G : t) (b : binding) := b :: G.
 Definition bind_tm (G : t) x T := (TmVar x T) :: G.
@@ -280,6 +280,15 @@ Proof.
   + auto.
 Qed.*)
 
+Inductive wf : t -> Prop := 
+  | wf_empty : wf empty
+  | wf_tmvar : forall id T ctxt,
+      ~ (exists T', In (TmVar id T') ctxt) -> 
+      wf ctxt -> wf (TmVar id T :: ctxt)
+  | wf_tyfree : forall id ctxt,
+      ~ In (TyFree id) ctxt ->
+      wf ctxt -> wf (TyFree id :: ctxt).
+
 End Context.
 
 Inductive appears_free_in : Id.t tm -> tm -> Prop :=
@@ -305,7 +314,7 @@ Definition closed (t:tm) :=
 
 Inductive wf_type : Context.t -> ty -> Prop :=
   | WF_Var : forall G X,
-      Context.In (Context.TyFree X) G ->
+      In (Context.TyFree X) G ->
       wf_type G (TVar X)
   | WF_Arrow : forall G T1 T2,
       wf_type G T1 ->
@@ -317,12 +326,13 @@ Inductive wf_type : Context.t -> ty -> Prop :=
 
 Inductive has_type : Context.t -> tm -> ty -> Prop :=
   | T_Var : forall G x T,
-      Context.In (Context.TmVar x T) G ->
+      Context.wf G -> wf_type G T ->
+      In (Context.TmVar x T) G ->
       has_type G (tvar x) T
   | T_Abs : forall x G T11 T12 t12,
       has_type (Context.bind_tm G x T11) t12 T12 ->
       has_type G (tabs x T11 t12) (TArrow T11 T12)
-  | T_App : forall T11 T12 G t1 t2,
+  | T_App : forall G T11 T12 t1 t2,
       has_type G t1 (TArrow T11 T12) ->
       has_type G t2 T11 ->
       has_type G (tapp t1 t2) T12
@@ -334,29 +344,12 @@ Inductive has_type : Context.t -> tm -> ty -> Prop :=
       wf_type G T' ->
       has_type G (tAPP body T') (subst_ty X T' T).
 
-Example typing_example_2_full :
-  has_type (Context.bind_ty Context.empty X)
-    (tabs x (TVar X)
-       (tabs y (TArrow (TVar X) (TVar X))
-          (tapp (tvar y) (tapp (tvar y) (tvar x)))))
-    (TArrow (TVar X) (TArrow (TArrow (TVar X) (TVar X)) (TVar X))).
-Proof with (compute; auto).
-  apply T_Abs.
-  apply T_Abs.
-  eapply T_App.
-  - apply T_Var.
-    simpl.
-    left.
-    split.
-    auto.
-    intro H.
-    destruct H.
-    apply H0.
-    left.
-    split.
-  - eapply T_App.
-    + apply T_Var...
-    + apply T_Var...
+Theorem wf_context G t T : has_type G t T -> Context.wf G.
+Proof with auto.
+  intro H.
+  induction H...
+  - inversion IHhas_type...
+  - inversion IHhas_type...
 Qed.
 
 Theorem progress G t T :
@@ -419,18 +412,34 @@ Lemma substitution_preserves_typing t : forall G x U t' T,
      has_type (Context.bind_tm G x U) t T ->
      has_type G t' U ->
      has_type G (t [x <- t']) T.
-Proof.
+Proof with (subst ; auto).
   induction t.
 
   - intros; simpl.
     remember (Id.eq x0 t) as eq_x.
     destruct eq_x.
     + inversion H.
-      apply Id.eq_true in Heqeq_x; subst.
-      inversion H3.
-      inversion H1; subst.
-      auto.
-    + 
+      apply Id.eq_true in Heqeq_x.
+      inversion H5...
+      * inversion H7...
+      * inversion H2...
+        destruct H6.
+        exists T...
+    + inversion H...
+      destruct H5.
+      * apply Id.eq_false in Heqeq_x.
+        inversion H1.
+        contradiction.
+      * inversion H2...
+        constructor...
+        compute in H3.
+        induction H3.
+        constructor.
+        inversion H3...
+        simpl in H4.
+        destruct H4. inversion H4.
+        constructor...
+        destruct H4. inversion H4.
     - 
     inversion H0; subst.
 

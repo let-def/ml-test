@@ -51,9 +51,9 @@
 \newtheorem{thm}{Théorème}
 \newtheorem{lemma}{Lemme}
 
-\chapter{Langage proposé}
+\section{Langage proposé}
 
-\section{Syntaxe}
+\subsection{Syntaxe}
 
 \begin{figure}
 \begin{align*}
@@ -176,9 +176,9 @@
 
 \pagebreak
 
-\section{Système de type}
+\subsection{Système de type}
 
-\subsection{Formation des contextes}
+\subsubsection{Formation des contextes}
 
 \begin{mathpar}
 \infer{ }{ \vdash . }
@@ -198,7 +198,7 @@
 }
 \end{mathpar}
 
-\subsection{Règles de typage}
+\subsubsection{Règles de typage}
 
 \begin{mathpar}
 %
@@ -275,7 +275,7 @@
 
 \end{mathpar}
 
-\subsection{Type des primitives}
+\subsubsection{Type des primitives}
 
 \begin{mathpar}
 %
@@ -338,7 +338,7 @@
 
 \end{mathpar}
 
-\subsection{Constructeurs de types}
+\subsubsection{Constructeurs de types}
 
 \begin{align*}
   \syn{\rho} k \rightarrow C, \vec{\ty} \,;\, \rho
@@ -351,9 +351,9 @@ On suppose l'existence d'une fonction
 $\delta : \epsilon \times \vec{\ty} \to \rho$.
 
 \todo{Meta constructeurs : IsInt, IsOut, Lt, Eq}
-%TODO \section{Sémantique des contraintes}
+%TODO \subsection{Sémantique des contraintes}
 
-\section{Sémantique opérationnelle}
+\subsection{Sémantique opérationnelle}
 
 \begin{mathpar}
 %
@@ -428,9 +428,16 @@ $\delta : \epsilon \times \vec{\ty} \to \rho$.
 }\rname{R-Unpack-1}
 \\
 
-\infer{}{
+\infer{
+  \redto{\term_2}{\term'_2}
+}{
   \redto{\kw{unpack} \val \kw{as} \var \kw{in} \term_2}
-        {\term_2\{\var \leftarrow \val\}}
+        {\kw{unpack} \val \kw{as} \var \kw{in} \term'_2}
+}\rname{R-Unpack-2}
+
+\infer{}{
+  \redto{\kw{unpack} \val_1 \kw{as} \var \kw{in} \val_2}
+        {\val_2\{\var \leftarrow \val\}}
 }\rname{R-Unpack}
 \\
 
@@ -443,7 +450,7 @@ $\delta : \epsilon \times \vec{\ty} \to \rho$.
 
 \end{mathpar}
 
-\subsection{Réduction des primitives}
+\subsubsection{Réduction des primitives}
 
 \begin{mathpar}
 %
@@ -501,7 +508,7 @@ $\delta : \epsilon \times \vec{\ty} \to \rho$.
 
 \end{mathpar}
 
-\section{Définition de la substitution}
+\subsection{Définition de la substitution}
 
 \newcommand\subst{\{\var \leftarrow v\}}
 \begin{align*}
@@ -586,7 +593,7 @@ $\delta : \epsilon \times \vec{\ty} \to \rho$.
     &\text{où}\; \ty'_i = \ty_i \subst
 \end{align*}
 
-\section{Propriétés du système de type}
+\subsection{Propriétés du système de type}
 
 \begin{lemma}[Inversion de la relation de typage]
 \begin{mathpar}
