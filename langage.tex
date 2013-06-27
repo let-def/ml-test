@@ -203,6 +203,7 @@
 \begin{mathpar}
 %
 \infer{
+  \vdash \tyenv \\
   \tyenvmem{\binding\var\ty}\tyenv
 }{
   \tycheck\tyenv\var\ty
@@ -244,7 +245,9 @@
 }{
   \tycheck{\csenv, \tyenv}{\kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2}{\ty} \\
 }\rname{T-Unpack}
-\\
+\end{mathpar}
+%
+\begin{mathpar}
 %
 \infer{
   k \in dom(D) \\
@@ -252,27 +255,56 @@
   \tycheck{\csenv \wedge \kw{tag} \var \in \lnot \{ k \}, x, D, \tyenv}{\vec{b}}{\ty}
 }{
   \tycheck{\csenv, \tyenv, x, D}{k \rightarrow \term \;|\; \vec{b}}{\ty}
-}\rname{T-PatTag}
+}\rname{T-DepPatTag}
 
 \infer{
   \tycheck{\csenv, \tyenv}{\term}{\ty}
 }{
   \tycheck{\csenv, \tyenv, x, D}{\_ \rightarrow \term}{\ty}
-}\rname{T-PatWildcard}
+}\rname{T-DepPatAny}
 
 \infer{
   \csenv \Vdash dom(D) \cap \kw{tag} x = \emptyset
 }{
   \tycheck{\csenv, \tyenv, x, D}{\emptyset}{\ty}
-}\rname{T-PatEmpty}
+}\rname{T-DepPatEmpty}
 
 \infer{
   \tycheck{\csenv, \tyenv}{\term}{\{ \var \}_D} \\
   \tycheck{\csenv, \tyenv, \var, D}{\vec{b}}{\ty}
 }{
   \tycheck{\csenv, \tyenv}{\kw{switch} \term \kw{in} \vec{b}}{\ty}
-}\rname{T-Switch}
+}\rname{T-DepSwitch}
+%
+\end{mathpar}
+%
+\begin{mathpar}
+%
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\ty} \\
+  \tycheck{\csenv, \tyenv, \{k_1 \ldots k_n\}}{\vec{b}}{\ty}
+}{
+  \tycheck{\csenv, \tyenv, \{k_0 \ldots k_n\}}{k_0 \rightarrow \term \;|\; \vec{b}}{\ty}
+}\rname{T-PatTag}
 
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\ty}
+}{
+  \tycheck{\csenv, \tyenv, \{k_0 \ldots k_n\}}{\_ \rightarrow \term}{\ty}
+}\rname{T-PatAny}
+
+\infer{
+}{
+  \tycheck{\csenv, \tyenv, \emptyset}{\emptyset}{\ty}
+}\rname{T-PatEmpty}
+
+\infer{
+  \tycheck{\csenv, \tyenv}{\term}{\{ k_0 \ldots k_n \}} \\
+  \tycheck{\csenv, \tyenv, \{ k_0 \ldots k_n \}}{\vec{b}}{\ty}
+}{
+  \tycheck{\csenv, \tyenv}{\kw{switch} \term \kw{in} \vec{b}}{\ty}
+}\rname{T-Switch}
+%
 \end{mathpar}
 
 \subsubsection{Type des primitives}
@@ -399,7 +431,7 @@ $\delta : \epsilon \times \vec{\ty} \to \rho$.
 \infer{}{
   \redto{\kw{switch} \val \kw{in} \_ \rightarrow \term}
         {\term}
-}\rname{R-PatWildcard}
+}\rname{R-PatAny}
 \\
 %
 \infer{
