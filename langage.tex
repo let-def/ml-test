@@ -17,6 +17,8 @@
 \newcommand\tyvar{\alpha}
 \newcommand\tykind{*}
 \newcommand\tyarrow[2]{#1 \rightarrow #2}
+% Datatype
+\newcommand\dtype{\epsilon \, \vec{\ty}}
 
 % Binding
 \newcommand\binding[2]{(#1 : #2)}
@@ -32,11 +34,6 @@
 % Keyword
 \newcommand\kw[1]{\operatorname{#1}}
 
-% Syntax
-\newcommand\syn[1]{#1 ::=& \; }
-\newcommand\synor{\\ |& \; }
-\newcommand\syndesc[1]{& \text{#1}}
-
 % Pattern
 \newcommand\pator{\;|\;}
 
@@ -48,12 +45,185 @@
 \newcommand\rref[1]{\textsc{\small#1}}
 \newcommand\rcase[1]{\paragraph{Cas \rref{#1}:}}
 
+\newcommand\freeinenv[1]{#1 \# \tyenv}
 \newtheorem{thm}{Théorème}
 \newtheorem{lemma}{Lemme}
 
-\section{Langage proposé}
+\section{Formalisation du langage}
+
+Le langage développé reprend le cœur du lambda-calcul polymorphe
+\cite{Reynolds94anintroduction} (aussi connu sous le nom de \emph{Système F})
+et l'étend avec les notions de primitives et de \emph{bloc} muni d'un
+\emph{tag} et les constructions d'analyse de tag et d'aiguillage.
 
 \subsection{Syntaxe}
+
+Présentons tout d'abord la syntaxe de ce langage.
+
+\subsubsection{Lambda-calcul polymorphe} 
+
+Les trois premières constructions du langage sont les variables, l'application
+et l'abstraction. Elles forment le lambda-calcul simplement typé.
+
+$$\synp{\term_1, \term_2} \var, y$$
+%
+Référence à une variable (liée dans l'environnement).
+
+$$\synp{\term_1, \term_2}   \term_1 \, \term_2$$
+%
+Application d'un terme à un autre.
+
+$$\synp{\term_1, \term_2}   \lambda \binding{\var}{\ty} . \term$$
+%
+Abstraction par rapport à une variable; $\var$ est liée dans $\term$.
+
+Ces trois constructions permettent de construire et d'appliquer des fonctions,
+dont le type est noté par une \emph{flèche} paramétrée par le domaine et le
+codomaine de la fonction.
+
+L'application et l'abstraction de types rajoutent le polymorphisme, représenté
+au niveau des types par la quantification universelle.
+
+$$\synp{\term_1, \term_2}   \lambda \tyvar . \term$$
+%
+Cette construction lie $\tyvar$ au sein du terme $\term$.
+
+$$\synp{\term_1, \term_2}   \term \, \ty $$
+%
+Contrairement à un langage tel qu'OCaml, la généralisation et l'instantiation
+des valeurs polymorphes sont marquées explicitement. Si un tel langage devait
+être utilisé dans le compilateur, c'est lors de la traduction que celles-ci
+seraient ajoutées par le \emph{front-end}.
+
+\subsubsection{Primitives}
+
+Des primitives peuvent être appliquées via la construction :
+%
+$$\synp{\term_1, \term_2} prim \, \vec{\term}$$
+
+Leur comportement est proche de celui de fonctions, mais elles ne sont pas
+définissables dans le langage. Leurs règles de réduction et de typage seront
+explicitées après.
+
+Les primitives sont toujours invoquées avec tous leurs arguments (il n'y a pas
+d'applications partielles).
+
+\begin{description}
+  \item[$\kw{makeblock}_{n,\dtype}$] Allocation d'un bloc avec l'étiquette $n$
+    et le type $\dtype$.
+  \item[$\kw{field}_n$] Projection du n-ième champ d'un bloc.
+  \item[$\kw{eq}_z$] Test d'égalité avec la constante $z$.
+  \item[$\kw{lt}_z$] Test d'infériorité par rapport à la constante $z$.
+  \item[$\kw{isint}$] Test si une valeur est une constante ou un bloc.
+  \item[$\kw{isout}_{[z1,z2]}$] Test si une valeur entière est dans un
+    intervalle.
+\end{description}
+
+\subsubsection{Extraction d'étiquette} 
+
+$$\synp{\term_1, \term_2} \kw{unpack} \term_1 \kw{as} y : \var \kw{in} \term_2$$
+%
+$\var$ et $y$ sont liés dans $\term_2$ :
+\begin{itemize}
+  \item $y$ est lié à la valeur de l'étiquette de $\term_1$.
+  \item $\var$ devient un alias de $\term_1$, mais dont le type est raffiné en
+    fonction des tests effectués sur $y$.
+\end{itemize}
+
+\subsubsection{Aiguillage} 
+
+$$\synp{\term_1, \term_2} \kw{switch} \term \kw{in} \vec{b} : \ty$$
+%
+L'étiquette de $\term$ est testée contre les branches de $\vec{b}$.
+L'exécution se poursuit sur la branche qui satisfait le test.
+
+Les branches ont les formes suivantes :
+%
+$$\synp{b} n \rightarrow \term \; | \; b$$
+%
+Le test réussit si l'étiquette est égale à $n$.
+%
+$$\synp{b}  \_ \rightarrow \term$$
+%
+Cas par défaut, le test réussit toujours.
+%
+$$\synp{b} \emptyset$$
+%
+Tous les cas ont été couverts. Si l'exécution devait arriver sur ce cas, ce
+serait une erreur. En particulier, le système de type doit garantir que ce cas
+ne peut arriver à l'exécution.
+
+\subsubsection{Constructeurs de types}
+
+% TODO Phi, ar, dom
+\begin{align*}
+  \syn{\rho} k \rightarrow C, \vec{\ty} \,;\, \rho
+  \synor \ldots
+  \synor \emptyset
+\end{align*}
+
+Soit $\epsilon$ l'ensemble des noms des constructeurs de types. \\
+On suppose l'existence d'une fonction 
+$\delta : \epsilon \times \vec{\ty} \to \rho$.
+
+\todo{Meta constructeurs : IsInt, IsOut, Lt, Eq}
+
+\subsubsection{Algèbre de type}
+
+$$\synp{\ty_1, \ty_2} \tyvar, \beta$$
+%
+Référence à des variables de types.
+
+$$\synp{\ty_1, \ty_2}  \ty_1 \rightarrow \ty_2$$
+%
+Type d'une fonction de $\ty_1$ vers $\ty_2$.
+
+$$\synp{\ty_1, \ty_2}  \forall \tyvar. \ty$$
+%
+Type polymorphe, abstrait par rapport à $\tyvar$ qui est lié dans $\ty$.
+
+$$\synp{\ty_1, \ty_2}  \dtype$$
+%
+$\epsilon$ est un nom de constructeur de type, dont les paramètres sont
+instanciés avec les types de $\vec{\ty}$.
+
+$$\synp{\ty_1, \ty_2}  \{ \var \}_{\dtype}$$
+%
+Type singleton : c'est le type exact de la variable nommée $\var$. Celui-ci est
+affiné par les contraintes introduites dans l'environnement.
+
+$$\synp{\ty_1, \ty_2}  \{ n: \vec{\ty} \}$$
+%
+Type du bloc d'étiquette $n$ et dont les valeurs ont les types de $\vec{ty}$.
+
+\subsubsection{Définition des contraintes}
+
+$$\synp{C} C \wedge C$$
+%
+Les deux contraintes doivent être vérifiées simultanément.
+
+$$\synp{C}  \ty_1 = \ty_2$$
+%
+Cette contrainte impose que deux types soient égaux.
+
+$$\synp{C}  \kw{tag} \var \in S$$
+%
+Cette contrainte impose que l'étiquette de $\var$ appartienne à l'ensemble $S$.
+$\var$ doit être de type singleton. $S$ est un ensemble fini ou cofini
+d'entiers.
+
+$$\synp{C}  \kw{tag} \var = y$$
+%
+La valeur de la variable $y$ est égale à l'étiquette de la valeur de la
+variable $\var$.
+
+$$\synp{C}  \top$$
+%
+Contrainte toujours vérifiée.
+
+$$\synp{C}  \bot$$
+%
+Contrainte jamais vérifiée.
 
 \begin{figure}
 \begin{align*}
@@ -63,7 +233,7 @@
     \syndesc{application}
   \synor      \lambda \binding{\var}{\ty} . \term
     \syndesc{abstraction}
-  \synor      \Lambda \tyvar . \term
+  \synor      \lambda \tyvar . \term
     \syndesc{abstraction de type}
   \synor      \term \, \ty
     \syndesc{application de type}
@@ -71,10 +241,22 @@
     \syndesc{application de primitives}
   \synor      \kw{switch} \term \kw{in} \vec{b} : \ty
     \syndesc{aiguillage}
-  \synor      \kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2
+  \synor      \kw{unpack} \term_1 \kw{as} y : \var \kw{in} \term_2
     \syndesc{ouverture d'un bloc}
 \end{align*}
 \caption{Syntaxe des termes}
+\end{figure}
+
+\begin{figure}
+\begin{align*}
+  \syn{v}     \lambda \binding{\var}{\ty} . \term
+    \syndesc{abstraction}
+  \synor      \Lambda \tyvar . v
+    \syndesc{abstraction de type}
+  \synor      \{ n: \vec{v} \}
+    \syndesc{bloc immédiat}
+\end{align*}
+\caption{Syntaxe des valeurs}
 \end{figure}
 
 \begin{figure}
@@ -97,17 +279,12 @@
     \syndesc{type flèche}
   \synor  \forall \tyvar. \ty
     \syndesc{quantification universelle}
-  \synor  D
-    \syndesc{type construit}
-  \synor  \{ \var \}_D
+  \synor  \dtype
+    \syndesc{constructeur paramétré}
+    \synor  \{ \var \}_{\dtype}
     \syndesc{type \emph{singleton}}
-  \synor  \kw{Tag}_z \var
-    \syndesc{type du \emph{tag} d'un \emph{singleton}}
   \synor  \{ n: \vec{\ty} \}
     \syndesc{type d'un bloc immédiat}
-  \\
-  \syn{D} \epsilon \, \vec{\ty}
-    \syndesc{constructeur paramétré}
 \end{align*}
 \caption{Syntaxe des types}
 \end{figure}
@@ -120,6 +297,8 @@
     \syndesc{égalité de types}
   \synor  \kw{tag} \var \in S
     \syndesc{restriction d'un \emph{tag}}
+  \synor  \kw{tag} \var = y
+    \syndesc{étiquette décrite par une variable}
   \synor  \top
     \syndesc{Vrai}
   \synor  \bot
@@ -130,14 +309,12 @@
 
 \begin{figure}
 \begin{align*}
-  \syn{S} \emptyset
-    \syndesc{ensemble vide}
-  \synor  \{ k_1, \ldots, k_n \}
+  \syn{S}
     \syndesc{ensemble fini}
   \synor  \lnot \{ k_1, \ldots, k_n \}
-    \syndesc{complémentaire}
+    \syndesc{ensemble cofini}
 \end{align*}
-\caption{Ensemble de \emph{tags}}
+\caption{Ensemble d'étiquettes}
 \end{figure}
 
 \begin{figure}
@@ -154,10 +331,8 @@
 
 \begin{figure}
 \begin{align*}
-  \syn{prim} \kw{makeblock}_{n,D}
+  \syn{prim} \kw{makeblock}_{n,\dtype}
     \syndesc{allocation d'un bloc}
-  \synor \kw{tagof}
-    \syndesc{extraction d'un \emph{tag}}
   \synor \kw{field}_{n}
     \syndesc{projection d'un champ}
   \synor \kw{eq}_{z}
@@ -168,222 +343,13 @@
     \syndesc{test d'entier}
   \synor \kw{isout}_{[z1,z2]}
     \syndesc{test d'intervalle}
-  \synor \kw{shift}_{z}
-    \syndesc{décalage constant}
+  %\synor \kw{shift}_{z}
+  %  \syndesc{décalage constant}
 \end{align*}
 \caption{Primitives du langage}
 \end{figure}
 
 \pagebreak
-
-\subsection{Système de type}
-
-\subsubsection{Formation des contextes}
-
-\begin{mathpar}
-\infer{ }{ \vdash . }
-
-\infer{
-  \vdash \tyenv \\
-  \tyenv \vdash \ty
-}{
-  \vdash \tyenvcons\tyenv{\var}{\ty}
-}
-
-\infer{
-  \vdash \tyenv \\
-  \tyenv \vdash D
-}{
-  \vdash \tyenvcons\tyenv{\var}{\{ \var \}_D}
-}
-\end{mathpar}
-
-\subsubsection{Règles de typage}
-
-\begin{mathpar}
-%
-\infer{
-  \vdash \tyenv \\
-  \tyenvmem{\binding\var\ty}\tyenv
-}{
-  \tycheck\tyenv\var\ty
-}\rname{T-Var}
-
-\infer{
-  \tycheck{\csenv, \tyenvcons\tyenv\var{\ty_1}}{\term}{\ty_2}
-}{
-  \tycheck{\csenv, \tyenv}{\lam{\binding\var{\ty_1}}{\term}}{\tyarrow{\ty_1}{\ty_2}}
-}\rname{T-Abs}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term_1}{\tyarrow{\ty_1}{\ty_2}} \\
-  \tycheck{\csenv, \tyenv}{\term_2}{\ty_1}
-}{
-  \tycheck{\csenv, \tyenv}{\term_1 \term_2}{\ty_2}
-}\rname{T-App}
-\\
-%
-\infer{
-  \tycheck{\csenv, \tyenvcons{\tyenv}{\tyvar}{\tykind}}{\term}{\ty}
-}{
-  \tycheck{\csenv, \tyenv}{\Lambda \tyvar . \term }{\forall \tyvar.\, \ty}
-}\rname{T-TApp}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\forall \tyvar.\, \ty_1}
-}{
-  \tycheck{\csenv, \tyenv}{\term \, \ty_2}{\ty_1 \{\tyvar \leftarrow \ty_2\}}
-}\rname{T-TAbs}
-\\
-%
-\infer{
-  x \notin \kw{dom}(\tyenv) \\ x \notin \kw{FV}(\ty) \\
-  \tycheck{\csenv, \tyenv}{\term_1}{D} \\
-  \tycheck{\csenv, \tyenvcons{\tyenv}
-                             {\var}{ \{ \var \}_D }}
-          {\term_2}{\ty}
-}{
-  \tycheck{\csenv, \tyenv}{\kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2}{\ty} \\
-}\rname{T-Unpack}
-\end{mathpar}
-%
-\begin{mathpar}
-%
-\infer{
-  k \in dom(D) \\
-  \tycheck{\csenv \wedge \kw{tag} \var \in \{ k \} \wedge D k, \tyenv}{\term}{\ty} \\
-  \tycheck{\csenv \wedge \kw{tag} \var \in \lnot \{ k \}, x, D, \tyenv}{\vec{b}}{\ty}
-}{
-  \tycheck{\csenv, \tyenv, x, D}{k \rightarrow \term \;|\; \vec{b}}{\ty}
-}\rname{T-DepPatTag}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\ty}
-}{
-  \tycheck{\csenv, \tyenv, x, D}{\_ \rightarrow \term}{\ty}
-}\rname{T-DepPatAny}
-
-\infer{
-  \csenv \Vdash dom(D) \cap \kw{tag} x = \emptyset
-}{
-  \tycheck{\csenv, \tyenv, x, D}{\emptyset}{\ty}
-}\rname{T-DepPatEmpty}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\{ \var \}_D} \\
-  \tycheck{\csenv, \tyenv, \var, D}{\vec{b}}{\ty}
-}{
-  \tycheck{\csenv, \tyenv}{\kw{switch} \term \kw{in} \vec{b}}{\ty}
-}\rname{T-DepSwitch}
-%
-\end{mathpar}
-%
-\begin{mathpar}
-%
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\ty} \\
-  \tycheck{\csenv, \tyenv, \{k_1 \ldots k_n\}}{\vec{b}}{\ty}
-}{
-  \tycheck{\csenv, \tyenv, \{k_0 \ldots k_n\}}{k_0 \rightarrow \term \;|\; \vec{b}}{\ty}
-}\rname{T-PatTag}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\ty}
-}{
-  \tycheck{\csenv, \tyenv, \{k_0 \ldots k_n\}}{\_ \rightarrow \term}{\ty}
-}\rname{T-PatAny}
-
-\infer{
-}{
-  \tycheck{\csenv, \tyenv, \emptyset}{\emptyset}{\ty}
-}\rname{T-PatEmpty}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\{ k_0 \ldots k_n \}} \\
-  \tycheck{\csenv, \tyenv, \{ k_0 \ldots k_n \}}{\vec{b}}{\ty}
-}{
-  \tycheck{\csenv, \tyenv}{\kw{switch} \term \kw{in} \vec{b}}{\ty}
-}\rname{T-Switch}
-%
-\end{mathpar}
-
-\subsubsection{Type des primitives}
-
-\begin{mathpar}
-%
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\{ \var \}_D}
-}{
-  \tycheck{\csenv, \tyenv}{\kw{tagof} \term}{\kw{Tag} \{ \var \}_D}
-}\rname{T-tagof}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\{ k: \vec{\ty_n} \}}
-}{
-  \tycheck{\csenv, \tyenv}{\kw{field}_i \term}{\ty_i}
-}\rname{T-field-imm}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\{ \var \}_D} \\
-  \csenv, \tyenv \Vdash \kw{tagof} \var \in \{ k \} \\
-  D(k) = \vec{\ty_n}
-}{
-  \tycheck{\csenv, \tyenv}{\kw{field}_i \term}{\ty_i}
-}\rname{T-field}
-
-\infer{
-  k \in dom(D) \\
-  \tycheck{\forall i. \, \csenv, \tyenv}{\term_i}{D_{k,i}} \\
-}{
-  \tycheck{\csenv, \tyenv}{\kw{makeblock}_{k,D} \vec{\term_n}}{D}
-}\rname{T-makeblock}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \var} \\
-}{
-  \tycheck{\csenv, \tyenv}{\kw{shift}_k \term}{\kw{Tag}_{z+k} \var}
-}\rname{T-shift}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag} \var} \\
-}{
-  \tycheck{\csenv, \tyenv}{\kw{isint} \term}{\kw{IsInt}(x,D)}
-}\rname{T-isint}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \var} \\
-}{
-  \tycheck{\csenv, \tyenv}{\kw{eq}_k \term}{\operatorname{Eq}(k-z,x,D)}
-}\rname{T-eq}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \var} \\
-}{
-  \tycheck{\csenv, \tyenv}{\kw{lt}_k \term}{\operatorname{Lt}(k-z,x,D)}
-}\rname{T-lt}
-
-\infer{
-  \tycheck{\csenv, \tyenv}{\term}{\kw{Tag}_z \var} \\
-}{
-  \tycheck{\csenv, \tyenv}{\kw{isout}_{[z1,z2]} \term}{\operatorname{IsOut}(z1-z,z2-z,x,D)}
-}\rname{T-isout}
-
-\end{mathpar}
-
-\subsubsection{Constructeurs de types}
-
-\begin{align*}
-  \syn{\rho} k \rightarrow C, \vec{\ty} \,;\, \rho
-  \synor \ldots
-  \synor \emptyset
-\end{align*}
-
-Soit $\epsilon$ l'ensemble des noms des constructeurs de types. \\
-On suppose l'existence d'une fonction 
-$\delta : \epsilon \times \vec{\ty} \to \rho$.
-
-\todo{Meta constructeurs : IsInt, IsOut, Lt, Eq}
-%TODO \subsection{Sémantique des contraintes}
 
 \subsection{Sémantique opérationnelle}
 
@@ -435,14 +401,15 @@ $\delta : \epsilon \times \vec{\ty} \to \rho$.
 \\
 %
 \infer{
-  \kw{tagof} \val = k
+  \val = \{k : \vec{v}'\}
 }{
   \redto{\kw{switch} \val \kw{in} k \rightarrow \term \pator \vec{b}}
         {\term}
 }\rname{R-PatMatch}
 
 \infer{
-  \kw{tagof} \val \neq k
+  \val = \{k' : \vec{v}'\} \\
+  k \neq k'
 }{
   \redto{\kw{switch} \val \kw{in} k \rightarrow \term \pator \vec{b}}
         {\kw{switch} \val \kw{in} \vec{b}}
@@ -483,28 +450,20 @@ $\delta : \epsilon \times \vec{\ty} \to \rho$.
 \end{mathpar}
 
 \subsubsection{Réduction des primitives}
-
+%
 \begin{mathpar}
 %
 \infer{}{
-  \redto{\kw{makeblock}_{k,\ty} \vec{v}}{\{k: \vec{v}\}}
+  \redto{\kw{makeblock}_{k,\ty} \vec{v}}{\{k: \vec{v}\}}
 }\rname{R-makeblock}
 
 \infer{}{
   \redto{\kw{field}_i \{k: \vec{v}\}}{v_i}
 }\rname{R-field}
-
-\infer{}{
-  \redto{\kw{shift}_z k}{z + k}
-}\rname{R-shift}
-
-\infer{}{
-  \redto{\kw{tagof} k}{k}
-}\rname{R-tagof-int}
-
-\infer{}{
-  \redto{\kw{tagof} \{k: \vec{v}\}}{k}
-}\rname{R-tagof-block}
+%
+%\infer{}{
+%  \redto{\kw{shift}_z k}{z + k}
+%}\rname{R-shift}
 
 \infer{ k = z }
       { \redto{\kw{eq}_z k}{1} }
@@ -540,30 +499,412 @@ $\delta : \epsilon \times \vec{\ty} \to \rho$.
 
 \end{mathpar}
 
-\subsection{Définition de la substitution}
+\subsection{Règles de bonnes formation}
 
+\subsubsection{Formation des contextes}
+\begin{mathpar}
+\infer{ }{ \vdash . }
+
+\infer{
+  \freeinenv{\var} \\
+  \vdash \tyenv \\
+  \tyenv \vdash \ty
+}{
+  \vdash \tyenvcons\tyenv{\var}{\ty}
+}
+
+\infer{
+  \freeinenv{\var} \\
+  \vdash \tyenv \\
+  \tyenv \vdash {\dtype}
+}{
+  \vdash \tyenvcons\tyenv{\var}{\{ \var \}_{\dtype}}
+}
+\end{mathpar}
+
+\subsubsection{Formation des types}
+\begin{mathpar}
+%
+\infer{
+  \vdash \tyenv \\
+  \binding{\tyvar}{*} \in \tyenv
+}{
+  \tyenv \vdash \tyvar
+}
+
+\infer{
+  \tyenv \vdash \ty_1 \\
+  \tyenv \vdash \ty_2
+}{
+  \tyenv \vdash \ty_1 \rightarrow \ty_2
+}
+
+\infer{
+  \freeinenv{\tyvar} \\
+  \tyenvcons\tyenv\tyvar{*} \vdash \ty
+}{
+  \tyenv \vdash \forall \tyvar. \ty
+}
+
+\infer{
+  \forall i \in [1,n] \; \tyenv \vdash \ty_i \\
+  ar(\epsilon) = |\vec{\ty}_n|
+}{
+  \tyenv \vdash \epsilon \vec{\ty}_n
+}
+
+\infer{
+  \vdash \tyenv \\
+  \binding{\var}{\{\var\}_{\dtype}} \in \tyenv
+}{
+  \tyenv \vdash \{\var\}_{\dtype}
+}
+
+\infer{
+  \forall i \in [1,n] \; \tyenv \vdash \ty_i
+}{
+  \tyenv \vdash \{ n: \vec{\ty_n}\}
+}
+\end{mathpar}
+
+\subsection{Règles de typage}
+
+\begin{mathpar}
+%
+\infer{
+  \vdash \tyenv \\
+  \tyenvmem{\binding\var\ty}\tyenv
+}{
+  \tycheck\tyenv\var\ty
+}\rname{T-Var}
+
+\infer{
+  \freeinenv{\var} \\
+  \tycheck{\tyenvcons\tyenv\var{\ty_1}, \csenv}{\term}{\ty_2}
+}{
+  \tycheck{\tyenv, \csenv}{\lam{\binding\var{\ty_1}}{\term}}{\tyarrow{\ty_1}{\ty_2}}
+}\rname{T-Abs}
+
+\infer{
+  \tycheck{\tyenv, \csenv}{\term_1}{\tyarrow{\ty_1}{\ty_2}} \\
+  \tycheck{\tyenv, \csenv}{\term_2}{\ty_1}
+}{
+  \tycheck{\tyenv, \csenv}{\term_1 \term_2}{\ty_2}
+}\rname{T-App}
+\end{mathpar}
+%
+Règles de typage usuelles du lambda-calcul:
+\begin{itemize}
+  \item Une variable doit faire référence à un nom déjà lié à un type dans le
+    contexte.
+  \item Le corps d'une abstraction est typé sous un contexte augmenté du nom et
+    du type liés. Le tout a un type flèche, dont le domaine est le type de
+    l'argument et le codomaine celui du corps.
+  \item Seule une abstraction peut être appliquer, et le domaine de
+    l'abstraction et le type de l'argument doivent coïncider.
+\end{itemize}
+
+\begin{mathpar}
+\infer{
+  \freeinenv{\var} \\
+  \tycheck{\tyenvcons{\tyenv}{\tyvar}{\tykind}, \csenv}{\term}{\ty}
+}{
+  \tycheck{\tyenv, \csenv}{\Lambda \tyvar . \term }{\forall \tyvar.\, \ty}
+}\rname{T-TAbs}
+
+\infer{
+  \tycheck{\tyenv, \csenv}{\term}{\forall \tyvar.\, \ty_1}
+}{
+  \tycheck{\tyenv, \csenv}{\term \, \ty_2}{\ty_1 \{\tyvar \leftarrow \ty_2\}}
+}\rname{T-TApp}
+\end{mathpar}
+%
+Extension du lambda-calcul polymorphe : les règles précédentes d'abstraction et
+d'application de termes sont transposées aux types.
+
+La quantification universelle remplace les types flèches pour indiquer
+l'abstraction par rapport à un type.
+
+\begin{mathpar}
+\infer{
+  \freeinenv{\var} \\
+  \freeinenv{y} \\
+  \var \notin \kw{FV}(\ty) \\
+  y \notin \kw{FV}(\ty) \\
+  \tycheck{\tyenv, \csenv}{\term_1}{\dtype} \\
+  \tycheck{\tyenvcons{\tyenvcons{\tyenv}
+                     {\var}{ \{ \var \}_{\dtype} }}
+                     {y}{ \{ y \}_{int} },
+           \csenv \wedge \kw{tag} \var = y}
+          {\term_2}{\ty}
+}{
+  \tycheck{\tyenv, \csenv}{\kw{unpack} \term_1 \kw{as} y : \var \kw{in} \term_2}{\ty}
+}\rname{T-Unpack}
+\end{mathpar}
+%
+L'extraction d'une étiquette se fait en liant deux nouvelles variables de
+termes dans l'environnement. 
+
+Ces variables de termes apparaissant également dans les types -- c'est le seule
+construction introduisant des types \emph{singleton}s -- il faut s'assurer que
+ces noms ne s'échappent pas de la construction $\kw{unpack}$.
+
+Enfin, le typage se fait sur le corps du $\kw{unpack}$ sous la contrainte que
+l'étiquette de $\var$ est bien décrite par $y$.
+
+\begin{mathpar}
+%
+\infer{
+  k \in dom({\dtype}) \\
+  \tycheck{\tyenv, \csenv \wedge \kw{tag} \var \in \{ k \} \wedge \Phi(\dtype, k)}{\term}{\ty} \\
+  \tycheck{\tyenv, \csenv \wedge \kw{tag} \var \in \lnot \{ k \}, \var, \dtype}{\vec{b}}{\ty}
+}{
+  \tycheck{\tyenv, \csenv, \var, \dtype}{k \rightarrow \term \;|\; \vec{b}}{\ty}
+}\rname{T-DepPatTag}
+
+\infer{
+  \tycheck{\tyenv, \csenv}{\term}{\ty}
+}{
+  \tycheck{\tyenv, \csenv, x, \dtype}{\_ \rightarrow \term}{\ty}
+}\rname{T-DepPatAny}
+
+\infer{
+  \csenv \Vdash \bot
+}{
+  \tycheck{\tyenv, \csenv, x, \dtype}{\emptyset}{\ty}
+}\rname{T-DepPatEmpty}
+
+\infer{
+  \tycheck{\tyenv, \csenv}{\term}{\{ \var \}_{\dtype}} \\
+  \tycheck{\tyenv, \csenv, \var, {\dtype}}{\vec{b}}{\ty}
+}{
+  \tycheck{\tyenv, \csenv}{\kw{switch} \term \kw{in} \vec{b}}{\ty}
+}\rname{T-DepSwitch}
+%
+\end{mathpar}
+%
+Pour typer les branches, on ajoute depuis la construction $\kw{switch}$
+la variable testée et le type de données auquel elle est liée dans le contexte
+de typage des branches. Puis on poursuit par le typage des branches. 
+
+\paragraph{Cas étiquetté} Le test d'une étiquette restreint la valeur
+d'une étiquette par le biais des contraintes pour typer le corps de la branche
+en cas de succès, ou bien exclue cette valeur de l'ensemble des étiquettes pour
+typer le reste des branches.
+
+En cas de succès, les contraintes propres à cette étiquette du type de données
+sont introduites avant de poursuivre le typage du corps (elles sont extraites
+\emph{via} la fonction $\Phi$).
+
+\paragraph{Cas par défaut} Si aucune branche n'a réussit, un cas par défaut
+doit être fourni. Son typage est plus simple, en particulier il n'est fait pas
+usage de $\var$ ni de $\dtype$
+
+\paragraph{Absence de cas par défaut} Si l'on peut déduire $\bot$ des
+contraintes, c'est que la branche actuelle fait partie du code mort; tous les
+étiquettes possibles ont été écartées avant.
+
+\begin{mathpar}
+%
+\infer{
+  \tycheck{\tyenv, \csenv}{\term}{\ty} \\
+}{
+  \tycheck{\tyenv, \csenv, k}{k \rightarrow \term \;|\; \vec{b}}{\ty}
+}\rname{T-PatTag-1}
+
+\infer{
+  \tycheck{\tyenv, \csenv, k'}{\vec{b}}{\ty}
+}{
+  \tycheck{\tyenv, \csenv, k'}{k \rightarrow \term \;|\; \vec{b}}{\ty}
+}\rname{T-PatTag-2}
+
+\infer{
+  \tycheck{\tyenv, \csenv}{\term}{\ty}
+}{
+  \tycheck{\tyenv, \csenv, k}{\_ \rightarrow \term}{\ty}
+}\rname{T-PatAny}
+
+\infer{
+  \tyenv, \csenv \Vdash \bot
+}{
+  \tycheck{\tyenv, \csenv, k}{\emptyset}{\ty}
+}\rname{T-PatEmpty}
+
+\infer{
+  \tycheck{\tyenv, \csenv}{\val}{\{k : \vec{ty}\}} \\
+  \tycheck{\tyenv, \csenv, k}{\vec{b}}{\ty}
+}{
+  \tycheck{\tyenv, \csenv}{\kw{switch} \val \kw{in} \vec{b}}{\ty}
+}\rname{T-Switch}
+%
+\end{mathpar}
+%
+Ces règles sont une version non dépendante des règles précédentes. Elles
+servent à montrer la correction du système de type.
+
+Lors de la réduction de $\kw{unpack}$, les variables introduites vont être
+substituées. Or les règles de typage de $\kw{switch}$ font référence à ces
+variables singletons. Durant cette réduction, la valeur exacte des étiquettes
+est connu : les règles ci-dessus permettent de prouver que si l'on connaît
+cette valeur, il est possible de réécrire la dérivation de typage sans utiliser
+de types dépendants.
+
+\subsubsection{Type des primitives}
+
+\begin{mathpar}
+\infer{
+  \tycheck{\tyenv, \csenv}{\term}{\{ k: \vec{\ty_n} \}}
+}{
+  \tycheck{\tyenv, \csenv}{\kw{field}_i \term}{\ty_i}
+}\rname{T-field-imm}
+
+\infer{
+  \tycheck{\tyenv, \csenv}{\term}{\{ \var \}_{\dtype}} \\
+  \tyenv, \csenv \Vdash \kw{tag} \var \in \{ k \} \\
+  fields({\dtype}, k) = \vec{\ty_n}
+}{
+  \tycheck{\tyenv, \csenv}{\kw{field}_i \term}{\ty_i}
+}\rname{T-field}
+\end{mathpar}
+%
+La projection d'une composante d'une valeur peut se faire soit si l'on connaît
+le type immédiat du bloc, soit s'il s'agit d'un type de données dont on peut
+déduire l'étiquette exacte depuis les contraintes.
+
+\begin{mathpar}
+\infer{
+  k \in dom({\dtype}) \\
+  n = ar({\dtype}) \\
+  \tycheck{\forall i \in [1,n]. \, \tyenv, \csenv}{\term_i}{field({\dtype},k,i)} \\
+}{
+  \tycheck{\tyenv, \csenv}{\kw{makeblock}_{k,{\dtype}} \vec{\term_n}}{{\dtype}}
+}\rname{T-makeblock}
+\end{mathpar}
+%
+La construction d'un bloc est paramétrée par le type dont on cherche à
+construire une valeur et l'étiquette de cette valeur. Il faut alors vérifier que
+l'arité et les types des arguments correspondent à la définition du type.
+
+%\infer{
+%  \tycheck{\tyenv, \csenv}{\term}{\kw{Tag}_z \var} \\
+%}{
+%  \tycheck{\tyenv, \csenv}{\kw{shift}_k \term}{\kw{Tag}_{z+k} \var}
+%}\rname{T-shift}
+\begin{mathpar}
+\infer{
+  \tycheck{\tyenv, \csenv}{\term}{\{ \var \}_{\dtype}} \\
+}{
+  \tycheck{\tyenv, \csenv}{\kw{isint} \term}{\kw{IsInt}(x,{\dtype})}
+}\rname{T-isint}
+
+\infer{
+  \tycheck{\tyenv, \csenv}{\term}{\{ \var \}_{\dtype}} \\
+}{
+  \tycheck{\tyenv, \csenv}{\kw{eq}_k \term}{\operatorname{Eq}(k,x,{\dtype})}
+}\rname{T-eq}
+
+\infer{
+  \tycheck{\tyenv, \csenv}{\term}{\{ \var \}_{\dtype}} \\
+}{
+  \tycheck{\tyenv, \csenv}{\kw{lt}_k \term}{\operatorname{Lt}(k,x,{\dtype})}
+}\rname{T-lt}
+
+\infer{
+  \tycheck{\tyenv, \csenv}{\term}{\{ \var \}_{\dtype}} \\
+}{
+  \tycheck{\tyenv, \csenv}{\kw{isout}_{[z1,z2]} \term}{\operatorname{IsOut}(z1,z2,\var,{\dtype})}
+}\rname{T-isout}
+\end{mathpar}
+%
+Ces quatres primitives sont typées par la construction d'un booléen
+introduisant des contraintes dans l'environnement.
+
+Leur comportement exact dépend donc de la définition des \emph{méta-constructeurs}.
+
+\paragraph{$\kw{IsInt}(x,{\dtype})$} est généré en séparant en deux
+sous-ensembles les étiquettes de $\dtype$ : $S_1$ pour les constructeurs
+constants ($\forall s \in S_1 \, ar(\dtype,s) = 0$) et $S_0$ pour les
+constructeurs paramétrés.  Avec les contraintes: 
+\begin{itemize}
+  \item $\Phi(\kw{IsInt}(x,{\dtype}),0) = \kw{tag} \var \in S_0$
+  \item $\Phi(\kw{IsInt}(x,{\dtype}),1) = \kw{tag} \var \in S_1$
+\end{itemize}
+
+\paragraph{$\kw{Eq}(k,x,{\dtype})$} teste si l'étiquette de $x$ est $k$.
+Les contraintes générées sont les suivantes: 
+\begin{itemize}
+  \item $\Phi(\kw{Eq}(k,x,{\dtype}),0) = \kw{tag} \var \notin \{k\}$
+  \item $\Phi(\kw{Eq}(k,x,{\dtype}),1) = \kw{tag} \var \in \{k\}$
+\end{itemize}
+
+\paragraph{$\kw{Lt}(k,x,{\dtype})$} teste si l'étiquette de $x$ est inférieur à
+$k$.
+Les contraintes générées sont les suivantes: 
+\begin{itemize}
+  \item $\Phi(\kw{Lt}(k,x,{\dtype}),0) = \kw{tag} \var \notin [0,k]$
+  \item $\Phi(\kw{Lt}(k,x,{\dtype}),1) = \kw{tag} \var \in [0,k]$
+\end{itemize}
+
+\paragraph{$\kw{IsOut}(z_1,z_2,x,{\dtype})$} teste si l'étiquette de $x$ est
+dans l'intervalle $[z_1,z_2]$.
+fes contraintes générées sont les suivantes: 
+\begin{itemize}
+  \item $\Phi(\kw{IsOut}(z_1,z_2,x,{\dtype}),0) = \kw{tag} \var \in [z_1,z_2]$
+  \item $\Phi(\kw{IsOut}(z_1,z_2,x,{\dtype}),1) = \kw{tag} \var \notin [z_1,z_2]$
+\end{itemize}
+
+\paragraph{Remarques} Les constructions \emph{Eq}, \emph{Lt} et \emph{IsOut}
+sont redondantes. Tous les cas peuvent se ramener à \emph{IsOut} en choisissant
+correctement l'intervalle. Cependant les trois primitives sont utilisées par la
+VM OCaml; les prendre en charge directement permet de rester proche du langage
+intermédiaire.
+
+\subsection{Interprétation de la substitution par une valeur}
 \newcommand\subst{\{\var \leftarrow v\}}
+
+L'opération de réécriture essentielle à la preuve du lemme de substitutivité
+est la substitution d'une variable de terme -- dont le type est un singleton --
+par une valeur.
+
+Voici la définition de l'opération pour les différents objets manipulés dans le
+lemme.
+
+$\var$ est substitué par une valeur $v$.
+Dans le contexte depuis lequel est extrait la variable $\var$, les hypothèses
+suivantes sont vérifiées :
+%
 \begin{align*}
-           C \wedge C \subst \;&\Rightarrow\; C\subst \wedge C\subst        \\
+  &\tycheck{\tyenv, \csenv}{\var}{\{\var'\}_{\dtype}} \\
+  &\tycheck{\tyenv, \csenv}{v}{\{k : \vec{\ty}\}}
+\end{align*}
+%
+\subsubsection{Dans les contextes}
+On peut supposer que $\var \# \tyenv$ : l'opération n'est effectuée que sur
+des contextes dont on a extrait auparavant la liaison de $\var$.
+\begin{align*}
+                            . \subst \;&\Rightarrow\; . \\
+     \tyenvcons\tyenv{y}{\ty} \subst \;&\Rightarrow\; \tyenvcons\tyenv{y}{\ty \subst} \\
+  \tyenvcons\tyenv{\alpha}{*} \subst \;&\Rightarrow\; \tyenvcons\tyenv{\alpha}{*} 
+\end{align*}
+
+\subsubsection{Dans les contraintes}
+\begin{align*}
+         C_1 \wedge C_2 \subst \;&\Rightarrow\; C_1 \subst \wedge C_2 \subst  \\
     \term_1 = \term_2 \subst \;&\Rightarrow\; \term_1\subst = \term_2\subst \\
-  \kw{tag} \var \in S \subst \;&\Rightarrow\; \top \\
-  \kw{tag} y    \in S \subst \;&\Rightarrow\; \kw{tag} y \in S \\
+    \kw{tag} y    \in S \subst \;&\Rightarrow\; \kw{tag} y \in S & \text{où } \var \neq y \\
+    \kw{tag} y    =  y' \subst \;&\Rightarrow\; \kw{tag} y \in S & \text{où } \var \neq y, \var \neq y' \\
+    \kw{tag} x    =  y  \subst \;&\Rightarrow\; \top \\
+    \kw{tag} y    =  x  \subst \;&\Rightarrow\; \kw{tag} x \in \{k\} & \text{où } v : \{k : \vec{\ty} \} \\
                  \top \subst \;&\Rightarrow\; \top \\
-                 \bot \subst \;&\Rightarrow\; \bot \\
+                 \bot \subst \;&\Rightarrow\; \bot
 \end{align*}
 
-\begin{align*}
-                            . \subst \;&\Rightarrow\; . \\
-     \tyenvcons\tyenv{y}{\ty} \subst \;&\Rightarrow\; \tyenvcons\tyenv{y}{\ty \subst} \\
-  \tyenvcons\tyenv{\alpha}{*} \subst \;&\Rightarrow\; \tyenvcons\tyenv{\alpha}{*} 
-\end{align*}
+Pour la substitution de $\kw{tag} \var \in S \subst$, la réécriture se fait
+suivant l'étiquette de $v \,:\, \{k : \vec{\ty}\}$. \\
+Si $k \in S$, alors $\kw{tag} \var \in S \subst \;\Rightarrow\; \top$. \\
+Sinon, alors $k \notin S$ et $\kw{tag} \var \in S \subst \;\Rightarrow\; \bot$.
 
-\begin{align*}
-                            . \subst \;&\Rightarrow\; . \\
-     \tyenvcons\tyenv{y}{\ty} \subst \;&\Rightarrow\; \tyenvcons\tyenv{y}{\ty \subst} \\
-  \tyenvcons\tyenv{\alpha}{*} \subst \;&\Rightarrow\; \tyenvcons\tyenv{\alpha}{*} 
-\end{align*}
-
+\subsubsection{Dans les termes}
 \begin{align*}
   \var
    \, \subst \;&\Rightarrow\; v
@@ -590,12 +931,19 @@ $\delta : \epsilon \times \vec{\ty} \to \rho$.
    \, \subst \;&\Rightarrow\; 
   \kw{switch} \term \subst \kw{in} \vec{b} \subst : \ty \subst 
     \\
-  \kw{unpack} \term_1 \kw{as} y \kw{in} \term_2
+  \kw{unpack} \term_1 \kw{as} y : x' \kw{in} \term_2
    \, \subst \;&\Rightarrow\; 
-  \kw{unpack} \term_1 \subst \kw{as} y \kw{in} \term_2 \subst
+  \kw{unpack} \term_1 \subst \kw{as} y : x' \kw{in} \term_2 \subst
     \\
 \end{align*}
+%
+Par construction, les variables liées sont fraîches et les valeurs substituées
+sont closes.
 
+On peut donc supposer que l'opération de substitution ne s'applique jamais sur
+une variable liée l'intérieur d'un terme.
+
+\subsubsection{Dans les types}
 \begin{align*}
   \ty_1 \rightarrow \ty_2
    \, \subst \;&\Rightarrow\; 
@@ -605,15 +953,10 @@ $\delta : \epsilon \times \vec{\ty} \to \rho$.
    \, \subst \;&\Rightarrow\; 
   \forall \tyvar. (\ty \subst)
   \\
-  \{ \var \}_D
+  \{ \var \}_{\dtype}
    \, \subst \;&\Rightarrow\; 
-    D \, v
-    &\text{où}\; \var = \{ x \}_D
-  \\
-  \kw{Tag}_z \var
-   \, \subst \;&\Rightarrow\; 
-    \kw{tag} D \, v
-    &\text{où}\; \var = \{ x \}_D
+   {\dtype} \, v
+   &\text{où}\; \var = \{ x \}_{\dtype}
   \\
   \{ n: \vec{\ty} \}
     \, \subst \;&\Rightarrow\; 
@@ -627,6 +970,26 @@ $\delta : \epsilon \times \vec{\ty} \to \rho$.
 
 \subsection{Propriétés du système de type}
 
+La preuve du système de type s'appuie sur la technique de preuve classique
+proposée par \cite{Wright92asyntactic}, qui consiste à montrer les deux
+théorèmes « subject reduction » et « progress », lesquels entraînent la sûreté
+du système de type.
+
+\begin{thm}[Subject-reduction]
+  Si $\tycheck{\tyenv, \csenv}{\term}{\ty}$ et $\term \Rightarrow \term'$ alors 
+     $\tycheck{\tyenv, \csenv}{\term'}{\ty}$.
+\end{thm}
+
+\begin{thm}[Progress]
+  Si $\tycheck{\tyenv, \csenv}{\term}{\ty}$ alors soit $\term$ est une valeur,
+    soit il existe $\term'$ tel que $\term \Rightarrow \term'$.
+\end{thm}
+
+Les preuves de \emph{Subject-Reduction} et \emph{Progress} suivent une
+structure établie reposant sur le lemme de la substitutivité (Préservation des
+types par substitution). Nous essayons de le prouver ci-après pour les
+extensions proposées par notre lambda-calcul.
+
 \begin{lemma}[Inversion de la relation de typage]
 \begin{mathpar}
 
@@ -637,68 +1000,69 @@ $\delta : \epsilon \times \vec{\ty} \to \rho$.
 }
 
 \infer{
-  \tycheck{\csenv, \tyenv}{\lam{\binding\var{\ty_1}}{\term}}{\ty}
+  \tycheck{\tyenv, \csenv}{\lam{\binding\var{\ty_1}}{\term}}{\ty}
 }{
   \ty = \tyarrow{\ty_1}{\ty_2} \\
-  \tycheck{\csenv, \tyenvcons\tyenv\var{\ty_1}}{\term}{\ty_2}
+  \tycheck{\tyenvcons\tyenv\var{\ty_1}, \csenv}{\term}{\ty_2}
 }
 
 \infer{
-  \tycheck{\csenv, \tyenv}{\term_1 \term_2}{\ty_2}
+  \tycheck{\tyenv, \csenv}{\term_1 \term_2}{\ty_2}
 }{
-  \tycheck{\csenv, \tyenv}{\term_1}{\tyarrow{\ty_1}{\ty_2}} \\
-  \tycheck{\csenv, \tyenv}{\term_2}{\ty_1}
+  \tycheck{\tyenv, \csenv}{\term_1}{\tyarrow{\ty_1}{\ty_2}} \\
+  \tycheck{\tyenv, \csenv}{\term_2}{\ty_1}
 }
 
 \infer{
-  \tycheck{\csenv, \tyenv}{\Lambda \tyvar . \term }{\ty}
+  \tycheck{\tyenv, \csenv}{\Lambda \tyvar . \term }{\ty}
 }{
   \ty = {\forall \tyvar.\, \ty'} \\
-  \tycheck{\csenv, \tyenvcons{\tyenv}{\tyvar}{\tykind}}{\term}{\ty}
+  \tycheck{\tyenvcons{\tyenv}{\tyvar}{\tykind}, \csenv}{\term}{\ty}
 }
 
 \infer{
-  \tycheck{\csenv, \tyenv}{\term \, \ty_2}{\ty}
+  \tycheck{\tyenv, \csenv}{\term \, \ty_2}{\ty}
 }{
   \ty =\ty_1 \{\tyvar \leftarrow \ty_2\} \\
-  \tycheck{\csenv, \tyenv}{\term}{\forall \tyvar.\, \ty_1}
+  \tycheck{\tyenv, \csenv}{\term}{\forall \tyvar.\, \ty_1}
 }
 
 \infer{
-  \tycheck{\csenv, \tyenv}{\kw{unpack} \term_1 \kw{as} \var \kw{in} \term_2}{\ty}
+  \tycheck{\tyenv, \csenv}{\kw{unpack} \term_1 \kw{as} y : \var \kw{in} \term_2}{\ty}
 }{
-  x \notin \kw{dom}(\tyenv) \\ x \notin \kw{FV}(\ty) \\
-  \tycheck{\csenv, \tyenv}{\term_1}{D} \\
-  \tycheck{\csenv, \tyenvcons{\tyenv}
-                             {\var}{ \{ \var \}_D }}
+  \freeinenv{\var} \\ \freeinenv{y} \\
+  x \notin \kw{FV}(\ty) \\ y \notin \kw{FV}(\ty) \\
+  \tycheck{\tyenv, \csenv}{\term_1}{{\dtype}} \\
+  \tycheck{\tyenvcons{\tyenvcons\tyenv{\var}{ \{ \var \}_{\dtype} }}
+                     {y}{\{y\}_{int}}, \csenv \wedge \kw{tag} \var = y }
           {\term_2}{\ty}
 }
 
 \infer{
-  \tycheck{\csenv, \tyenv, x, D}{k \rightarrow \term \;|\; \vec{b}}{\ty}
+  \tycheck{\tyenv, \csenv, x, {\dtype}}{k \rightarrow \term \;|\; \vec{b}}{\ty}
 }{
-  k \in dom(D) \\
-  \tycheck{\csenv \wedge \kw{tag} \var \in \{ k \} \wedge D k, \tyenv}{\term}{\ty} \\
-  \tycheck{\csenv \wedge \kw{tag} \var \in \lnot \{ k \}, x, D, \tyenv}{\vec{b}}{\ty}
+  k \in dom({\dtype}) \\
+  \tycheck{\tyenv, \csenv \wedge \kw{tag} \var \in \{ k \} \wedge {\dtype} k}{\term}{\ty} \\
+  \tycheck{\tyenv, \csenv \wedge \kw{tag} \var \in \lnot \{ k \}, x, {\dtype}}{\vec{b}}{\ty}
 }
 
 \infer{
-  \tycheck{\csenv, \tyenv, x, D}{\_ \rightarrow \term}{\ty}
+  \tycheck{\tyenv, \csenv, x, {\dtype}}{\_ \rightarrow \term}{\ty}
 }{
-  \tycheck{\csenv, \tyenv}{\term}{\ty}
+  \tycheck{\tyenv, \csenv}{\term}{\ty}
 }
 
 \infer{
-  \tycheck{\csenv, \tyenv, x, D}{\emptyset}{\ty}
+  \tycheck{\tyenv, \csenv, x, {\dtype}}{\emptyset}{\ty}
 }{
-  \csenv, \tyenv \Vdash dom(D) \cap \kw{tag} x = \emptyset
+  \tyenv, \csenv \Vdash \bot
 }
 
 \infer{
-  \tycheck{\csenv, \tyenv}{\kw{switch} \term \kw{in} \vec{b}}{\ty}
+  \tycheck{\tyenv, \csenv}{\kw{switch} \term \kw{in} \vec{b}}{\ty}
 }{
-  \tycheck{\csenv, \tyenv}{\term}{\{ \var \}_D} \\
-  \tycheck{\csenv, \tyenv, \var, D}{\vec{b}}{\ty}
+  \tycheck{\tyenv, \csenv}{\term}{\{ \var \}_{\dtype}} \\
+  \tycheck{\tyenv, \csenv, \var, {\dtype}}{\vec{b}}{\ty}
 }
 
 \end{mathpar}
@@ -709,20 +1073,69 @@ $\delta : \epsilon \times \vec{\ty} \to \rho$.
 \end{proof}
 \end{lemma}
 
-\pagebreak
+\begin{lemma}[Préservation du type des branches par substitution d'un singleton]
+\begin{mathpar}
+\infer{
+  \tycheck{\tyenv, \csenv, \var, \dtype}{\vec{b}}{\ty} \\
+  \tycheck{\tyenv, \csenv}{\var}{\{k: \vec{v}'\}}
+}{
+  \tycheck{\tyenv \{\var \leftarrow \val\}, \csenv \{\var \leftarrow \val\},
+    k}{\vec{b} \{\var \leftarrow \val\} }{\ty}
+}
+\end{mathpar}
+
+\begin{proof}
+  Par induction sur la dérivation de $\vec{b} : \ty$.
+  Les trois formes possibles de jugement sont \textsc{T-Dep-PatTag},
+  \textsc{T-Dep-PatAny} et \textsc{T-Dep-PatEmpty}.
+
+\rcase{T-Dep-PatEmpty}
+  Cas de base. Par inversion, on sait que $\tyenv, \csenv \Vdash \bot$.
+  C'est suffisant pour pouvoir appliquer le jugement \textsc{T-PatEmpty} qui permet de
+  conclure immédiatement.
+
+\rcase{T-Dep-PatAny}
+  Cas de base. Par inversion, $\vec{b} = _ \rightarrow \term$ et
+  $\tycheck{\tyenv, \csenv}{\term}{\ty}$.
+  On peut donc appliquer le jugement \textsc{T-PatAny} qui permet de
+  conclure immédiatement.
+
+\rcase{T-Dep-PatTag}
+  Cas inductif. Hypothèses:
+\begin{equation*}
+\begin{aligned}
+  & \tycheck{\tyenv, \csenv, \var, \dtype}{k' \rightarrow \vec{b}'}{\ty} \\
+  & k' \in dom({\dtype}) \\
+  & \tycheck{\tyenv, \csenv \wedge \kw{tag} \var \in \{ k' \} \wedge \Phi(\dtype, k')}{\term}{\ty} \\
+  & \tycheck{\tyenv, \csenv \wedge \kw{tag} \var \in \lnot \{ k' \}, \var, \dtype}{\vec{b}'}{\ty}
+\end{aligned}
+\end{equation*}
+
+  Si $k = k'$, on applique \textsc{T-PatTag-1} sur l'environnement réécrit après
+  substitution de $\var$ par $\val$.
+
+  Si $k \neq k'$, on applique \textsc{T-PatTag-2} en utilisant l'hypothèse 
+  d'induction.
+
+  \paragraph{Remarques} Il faut montrer que la substitution dans
+  l'environnement satisfait les contraintes pour pouvoir appliquer les
+  jugements non dépendants \ldots
+\end{proof}
+\end{lemma}
+
 \begin{lemma}[Préservation des types par substitution]
 \begin{mathpar}
 \infer{
-  \tycheck{\csenv, \tyenvcons\tyenv\var{\ty'}}{\term}{\ty} \\
-  \tycheck{\csenv, \tyenv}{\term'}{\ty'}
+  \tycheck{\tyenvcons\tyenv\var{\ty'}, \csenv}{\term}{\ty} \\
+  \tycheck{\tyenv, \csenv}{\val}{\ty'}
 }{
-  \tycheck{\csenv, \tyenv}{\term \{ \var \leftarrow \term' \}}{\ty}
+  \tycheck{\tyenv \{ \var \leftarrow \val \}, \csenv \{ \var \leftarrow \val \} }{\term \{ \var \leftarrow \val \}}{\ty}
 }
 \end{mathpar}
 
 \begin{proof}
 Par induction sur la dérivation du jugement
-  $\tycheck{\csenv, \tyenvcons\tyenv\var{\ty'}}{\term}{\ty}$.
+  $\tycheck{\tyenvcons\tyenv\var{\ty'}, \csenv}{\term}{\ty}$.
   
 \rcase{T-Unpack} 
 \begin{equation*}
@@ -730,38 +1143,45 @@ Par induction sur la dérivation du jugement
   & \term = \kw{unpack} \term_1 \kw{as} y \kw{in} \term_2 \\
   & y \notin dom(\tyenvcons\tyenv\var{\ty'}) \\
   & y \notin FV(\ty) \\
-  & \tycheck{\csenv, \tyenvcons\tyenv\var{\ty'}}{\term_1}{\ty_1} \\
-  & \tycheck{\csenv, \tyenvcons{\tyenvcons\tyenv\var{\ty'}}{y}{\ty_1}}{\term_2}{\ty}
+  & \tycheck{\tyenvcons\tyenv\var{\ty'}, \csenv}{\term_1}{\ty_1} \\
+  & \tycheck{\tyenvcons{\tyenvcons\tyenv\var{\ty'}}{y}{\ty_1}, \csenv}{\term_2}{\ty}
 \end{aligned}
 \end{equation*}
 
 Par hypothèse, $y \neq \var$.
 L'hypothèse d'induction nous permet de déduire 
-  $\tycheck{\csenv, \tyenvcons\tyenv{y}{\ty_1}}{\term_1}{\ty_1}$.
+  $\tycheck{\tyenvcons\tyenv{y}{\ty_1}, \csenv}{\term_1}{\ty_1}$.
 Par permutation de contexte, on montre
-  $\tycheck{\csenv, \tyenvcons{\tyenvcons\tyenv{y}{\ty_1}}\var{\ty'}}{\term_2}{\ty}$.
+  $\tycheck{\tyenvcons{\tyenvcons\tyenv{y}{\ty_1}}\var{\ty'}, \csenv}{\term_2}{\ty}$.
 En affaiblissement le contexte de la seconde hypothèse, on obtient
-  $\tycheck{\csenv, \tyenvcons\tyenv{y}{\ty_1}}{\term'}{\ty'}$.
+  $\tycheck{\tyenvcons\tyenv{y}{\ty_1}, \csenv}{\val}{\ty'}$.
 On peut alors appliquer l'hypothèse d'induction sur le terme $\ty_2$:
-  $\tycheck{\csenv, \tyenvcons\tyenv{y}{\ty_1}}{\term_2\{\var \leftarrow \term'\}}{\ty'}$.
+  $\tycheck{\tyenvcons\tyenv{y}{\ty_1}, \csenv}{\term_2\{\var \leftarrow \val\}}{\ty'}$.
 \\
 On applique alors appliquer $\rref{T-Unpack}$ qui nous donne le résultat attendu.
-  $\tycheck{\csenv, \tyenvcons\tyenv\var{\ty'}}
+  $\tycheck{\tyenvcons\tyenv\var{\ty'}, \csenv}
            {\kw{unpack} \term_1 \kw{as} y \kw{in} \term_2}{\ty}$.
 
-\rcase{T-Switch}
+\rcase{T-DepSwitch}
 \begin{equation*}
 \begin{aligned}
   & \term = \kw{switch} \term_1 \kw{in} \vec{b} \\
-  & \tycheck{\csenv, \tyenvcons\tyenv\var{\ty'}}{\term_1}{\{y\}_D} \\
-  & \tycheck{\csenv, \tyenvcons\tyenv\var{\ty'}, y, D}{\vec{b}}{\ty}
+  & \tycheck{\tyenvcons\tyenv\var{\ty'}, \csenv}{\term_1}{\{y\}_{\dtype}} \\
+  & \tycheck{\tyenvcons\tyenv\var{\ty'}, \csenv, y, {\dtype}}{\vec{b}}{\ty}
 \end{aligned}
 \end{equation*}
 
-Ici, deux cas se présentent : soit $y \neq \var$ et le cas est trivial, soit $y = \var$.
-\todo{AHHHAH}.
+Ici, deux cas se présentent selon la définition de $y$ : si $y \neq \var$ la
+preuve est immédiate par application des hypothèses d'induction sur les
+sous-termes. 
 
-\rcase{T-}
+Supposons $y = \var$. Alors $\val : \ty'$ est de la forme $\{n : \vec{\val}'\}$.
+En utilisant le lemme précédent, on montre
+$$\tycheck{\tyenv \{ \var \leftarrow \val \}, \csenv \{ \var \leftarrow \val \} }{\vec{b} \{ \var \leftarrow \val \}}{\ty}$$
+\textsc{T-Switch} permet alors de conclure.
+
+\paragraph{Remarques} La méthode de preuve semble bonne, mais la preuve est
+  incomplète et le cadre formel pour l'exprimer correctement insuffisant.
 
 \end{proof}
 \end{lemma}

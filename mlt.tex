@@ -12,8 +12,16 @@
 
 \lstset{language=Caml}
 
-\title{Typage d'un lambda-calcul avec une construction de branchements}
-\author{Frédéric Bour, avec l'encadrement de Yann Régis-Gianas}
+\title{Typage d'un lambda-calcul avec analyse de données étiquettées}
+\author{Frédéric Bour, supervisé par Yann Régis-Gianas}
+
+% Syntax
+\newcommand\syn[1]{#1 ::=& \; }
+\newcommand\synor{\\ |& \; }
+\newcommand\syndesc[1]{& \text{#1}}
+
+\newcommand\synp[1]{#1 ::= \; }
+\newcommand\syndescp[1]{ \text{#1}}
 
 \newcommand\todo[1]{TODO[#1]}
 %\includeonly{langage}
@@ -35,7 +43,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\include{conception}
+%\include{conception}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -44,6 +52,8 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\include{conclusion}
 
 \bibliographystyle{apalike}
 \bibliography{mlt}

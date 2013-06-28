@@ -1,22 +1,24 @@
 \section{Motivations}
 
-Ce TRE a débuté par une étude de la faisabilité d'une analyse statique du
-flot des exceptions pour OCaml 4.00. 
+Le sujet initial de ce TRE était une analyse statique du flot des exceptions
+pour OCaml 4.00. 
 
 Les systèmes d'exceptions permettent au programmeur de manipuler le contrôle de
 flot beaucoup plus librement qu'avec un traditionnel appel de fonction
 retournant une valeur. Malheureusement, il devient alors difficile de connaître
-les différents flots d'exécutions possibles car ceux-ci ne correspondent plus
-strictement à la structure du code source -- on parle de contrôle de flot
+les différentes traces d'exécutions possibles car celles-ci ne correspondent
+plus strictement à la structure du code source -- on parle de contrôle de flot
 non-local.
 
-Les programmes sûrs issus d'OCaml font partie des principaux arguments en sa
-faveur. Mais pour garantir cette sûreté, il faut souvent se priver
-d'exceptions.  L'analyse statique que nous souhaitions effectuer visait à
-vérifier de manière mécanique l'absence d'exceptions ou bien l'exhaustivité de
-leur traitement dans un code source.
+Si le système de type d'OCaml permet de dire que les programmes bien typés ne
+peuvent causer d'erreurs d'exécutions, les exceptions viennent affaiblir cette
+affirmation.  Une exception non rattrapée causera l'arrêt d'un programme comme
+aurait pu le faire une erreur d'exécution.  Pour garantir des programmes sûrs,
+il est d'usage de se priver des exceptions.  L'analyse statique que nous
+souhaitions effectuer visait à vérifier de manière mécanique l'absence
+d'exceptions ou bien l'exhaustivité de leur traitement dans un code source.
 
-Ce travail reprenait les résultats de la thèse de François Pessaux
+Cette piste reprenait les résultats de la thèse de François Pessaux
 \cite{ExcAnalysis} qui avait aboutie à un prototype permettant ce type
 d'analyse pour OCaml 3.00.  Les résultats étaient très encourageants au point
 de présenter un intérêt pour des applications industrielles.
@@ -28,98 +30,128 @@ abordée dans la thèse permet une analyse fine, l'implantation est difficile à
 maintenir car celle-ci s'appuie sur la syntaxe abstraite d'OCaml et implique de
 développer en parallèle un typeur spécialisé.
 
+\subsection{\emph{Lambda}, un langage intermédiaire d'OCamlc}
+
 Notre travail de recherche s'est alors orienté vers le langage intermédiaire du
-compilateur OCaml. 
+compilateur OCaml : \emph{Lambda}, le premier après le \emph{front-end}.
 
-\subsection{\emph{Lambda}, le langage intermédiaire}
-
-Cibler \emph{Lambda} apporte de nombreux avantages, notamment :
+Cibler \emph{Lambda} apporte de nombreux avantages par rapport à un travail sur
+la syntaxe abstraite, notamment :
 \begin{description}
   \item[Indépendance vis-à-vis du \emph{front-end}.] Si le langage de surface
     OCaml est régulièrement étendu, \emph{Lambda} est très stable et n'a pas
     connu de changements majeurs depuis l'introduction du système objet il y a
-    plus de 10 ans. C'est une cible pérenne.(\todo{ref OO})
+    plus de 10 ans. C'est une cible pérenne.
   \item[Langage minimaliste.]
     Les nombreuses constructions de surface sont réduites à un petit ensemble.
-		La définition de \emph{lambda} tient en une dizaine de lignes ;
+		La définition de \emph{Lambda} tient en une dizaine de lignes ;
 		la définition du langage de surface en occupe des centaines.
     L'analyse peut ainsi se concentrer directement sur le cœur du langage et
     garder une taille modeste. Le travail de maintenance est moindre.
 \end{description}
 
-Mais \emph{lambda} n'est pas typé. Dans la chaîne de traitement du
-compilateur, les types sont vérifiés pour le langage source par le typeur puis
-effacés. Tout le reste du traitement s'effectue sur une version non-typée du
-programme. Ce choix est justifié par l'omniprésence du polymorphisme
-paramétrique dans ce langage et de la représentation très régulière des valeurs
-à l'exécution.
+Ces avantages s'accompagnent des inconvénients suivants :
+\begin{description}
+  \item[Distance avec le langage source.] \emph{Lambda} étant issu d'une
+    traduction du programme source après vérification des types, certaines
+    informations sont perdues ou difficile à faire correspondre avec le
+    programme original. 
+  \item[Absence d'informations de types.] \emph{Lambda} n'est pas typé. Dans la
+    chaîne de traitement du compilateur, les types sont vérifiés pour le
+    langage source par le typeur puis effacés. Tout le reste du traitement
+    s'effectue sur une version non-typée du programme. 
+\end{description}
 
-Le polymorphisme paramétrique permet de garantir qu'un programme bien typé est
-sémantiquement équivalent après effacement des types \todo{ref didier rémy ?}.
-La représentation des valeurs permet de travailler correctement sans
-information de types -- cela concerne par exemple la convention d'appel des
-fonctions ou le passage du glaneur de cellule.
-
-\todo{figure : pipeline ocaml}.
+%\todo{figure : pipeline ocaml}.
 
 Ce choix restreint les traitements possibles dans la suite de la compilation.
 Le compilateur natif tente par exemple de réinférer des types dans le cadre de
 certaines optimisations, mais il ne s'agit que d'approximation conservative.
-Dans notre cas analyser le flot devient beaucoup plus compliqué -- un travail
-absurde quand on sait que les informations nécessaires pour guider cette
-analyse viennent d'être effacées dans la chaîne de compilation.
+Dans notre cas analyser le flot est beaucoup plus compliqué sans type.
+% TODO: documenter effet latents
 
-Concevoir une version de \emph{lambda} préservant les types semble être un
+Concevoir une version de \emph{Lambda} préservant les types semble donc être un
 prérequis pour un outil d'analyse viable.
 
-\subsection{Vers une version \emph{typée} de \emph{Lambda}}
+\paragraph{Remarques} Le choix de l'effacement des types est justifié par
+l'omniprésence du polymorphisme paramétrique dans le langage Ocaml et de la
+représentation très régulière des valeurs à l'exécution.
 
-Le langage \emph{lambda} est un lambda-calcul proposant des fonctions de très
-bas-niveau.
+Le polymorphisme paramétrique permet de garantir qu'un programme bien typé est
+sémantiquement équivalent après effacement des types. %\todo{ref didier rémy ?}
+La représentation des valeurs permet de travailler correctement sans
+information de types -- cela concerne par exemple la convention d'appel des
+fonctions ou le passage du glaneur de cellule.
 
-Dans le cadre de la compilation, le lambda-calcul désigne une famille de
-langage de programmation fonctionnelle reposant autour d'un unique mécanisme
-d'abstraction.  Cela rend sa définition simplissime, le noyau syntaxique tient
-en trois règles.  Mais derrière celles-ci se cache une très grande expressivité
-: c'est un langage turing-complet et d'un suffisamment haut-niveau pour
-permettre un encodage léger des constructions classiques des langages de
-programmation \cite{LTU}.
+\subsection{\emph{Lambda}, un lambda-calcul}
 
-Un lambda-calcul est ainsi un choix naturel pour un langage intermédiaire. La
-variante d'OCaml ajoute principalement des primitives d'accès mémoires et de
-branchements; des extensions de bas-niveau.
+%Le langage \emph{Lambda} est un lambda-calcul proposant des fonctions de très
+%bas-niveau.
 
-Une autre implantation majeure du langage de programmation fonctionnelle
-Haskell, GHC \cite{Marlow98thenew}, a fait un choix très différent dans la
-conception de son langage intermédiaire nommé \emph{Core}.  Ce dernier n'offre
-pas de telles primitives; les accès mémoires sont masqués derrière une forme
-simplifiée de \emph{filtrage de motifs}. Mais son système de type, System $F_c$
-\cite{Sulzmann07systemf}, permet de vérifier des constructions avancées
-d'Haskell (comme les \emph{GADTs}) que l'on retrouve dans OCaml.
+Le lambda-calcul, introduit par Church désigne une famille de langage de
+programmation fonctionnelle reposant autour d'un unique mécanisme substitution.
+Cela rend sa définition simplissime, le noyau syntaxique tient en trois règles :
+$$t ::= x | \lambda x . t | t \, t$$
+La variable $x$, l'abstraction d'un terme par rapport à une variable et enfin
+l'application d'un terme à un autre.
+Mais derrière cette concision se cache une très grande expressivité : c'est un
+langage turing-complet et d'un suffisamment haut-niveau pour permettre un
+codage léger des constructions classiques des langages de programmation
+\cite{Landin}.
 
-\subsection{Le typage des constructions de bas-niveau}
+Un lambda-calcul est ainsi un choix naturel pour un langage intermédiaire, son
+expressivité sera suffisante pour les évolutions futures du langage source.
+Le \emph{Lambda} d'OCaml ajoute principalement des primitives d'accès mémoires
+et de branchements; des extensions de bas-niveau.
+
+\subsection{Un typage spécifique}
+
+Les intérêts d'un langage intermédiaire typé sont multiples. Outre faciliter
+l'analyse et l'optimisation des programmes, cela offre également des garanties
+de correction. On peut ainsi vérifier que les passes de compilation et les
+transformations intermédiaires appliquées au programme conserve certains
+invariants. Le programme reste bien typé une fois exprimé dans un langage de
+plus bas-niveau ou, inversement, une traduction erronée pourra être détectée
+mécaniquement.
+
+\cite{MorrisettWCG99} propose un schéma de compilation typé depuis un
+lambda-calcul vers un assembleur spécifique.
+
+Une implantation majeure du langage de programmation fonctionnelle
+Haskell, GHC \cite{Marlow98thenew}, a fait des choix très différents de ceux
+d'OCaml dans la conception de son langage intermédiaire.  Ce dernier n'offre
+pas de primitives de bas-niveau : les accès mémoires sont masqués derrière une
+forme simplifiée de \emph{filtrage de motifs}. Mais il est typé et son système
+de type, System $F_c$ \cite{Sulzmann07systemf}, permet de vérifier toutes
+constructions d'Haskell (comme les \emph{GADTs}).
 
 Les systèmes de types d'OCaml et d'Haskell présentent de nombreuses
-similitudes. La réussite de \emph{Core} nous a conforté dans la faisabilité
-d'un traitement similaire pour OCaml.
+similitudes. L'emploi réussi de System $F_c$ dans GHC nous a conforté dans la
+faisabilité d'un traitement similaire dans OCaml.
 
 Dans le souci d'être le moins intrusif possible dans le compilateur
-OCaml actuel, il était nécessaire d'étendre le langage \emph{lambda} et non de
-le remplacer.
+OCaml actuel, il était nécessaire d'étendre le langage \emph{Lambda} et non de
+le remplacer.  L'extension que nous proposons introduit un système de type avec
+une forme de dépendance entre types et termes pour prendre en charge les
+constructions de bas-niveau d'accès mémoire et de branchements de \emph{Lambda}.
 
-Pour mener à terme cet objectif, les étapes suivantes se profilaient :
-\begin{itemize}
-  \item concevoir un système de type s'inspirant de System $F_c$ et composant
-    avec les contraintes imposées par \emph{lambda},
-  \item établir encodage des constructions d'Ocaml (types algébriques, modules,
-    GADTs, variants polymorphes) dans ce système afin de s'assurer que toutes
-    sont capturées,
-  \item étendre \emph{lambda} et proposer un schéma de compilation vers ce
-    nouveau langage intermédiaire.
-\end{itemize}
+C'est ce problème que nous avons spécifiquement cherché à résoudre et qui n'a,
+à notre connaissance, pas été étudié dans le contexte d'un langage
+intermédiaire.
 
-Ceci constitue un travail de grande ampleur. Dans ce rapport nous adressons le
-point précis de typer les contraintes imposées par \emph{lambda}; un
-branchement et des accès mémoires beaucoup plus libres que ce que ne permet le
-\emph{filtrage de motif} traditionnel.
+%Pour mener à terme cet objectif, les étapes suivantes se profilaient :
+%\begin{itemize}
+%  \item concevoir un système de type s'inspirant de System $F_c$ et composant
+%    avec les contraintes imposées par \emph{Lambda},
+%  \item établir un codage des constructions d'Ocaml (types algébriques, modules,
+%    GADTs, variants polymorphes) dans ce système afin de s'assurer que toutes
+%    sont capturées,
+%  \item étendre \emph{Lambda} et proposer un schéma de compilation vers ce
+%    nouveau langage intermédiaire.
+%\end{itemize}
+%
+%Ceci constitue un travail de grande ampleur. Dans ce rapport nous adressons le
+%point précis de typer les contraintes imposées par \emph{Lambda}; un
+%branchement et des accès mémoires beaucoup plus libres que ce que ne permet le
+%\emph{filtrage de motif} traditionnel.
 
