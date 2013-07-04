@@ -90,7 +90,7 @@ Cette construction lie $\tyvar$ au sein du terme $\term$.
 
 $$\synp{\term_1, \term_2}   \term \, \ty $$
 %
-Contrairement à un langage tel qu'OCaml, la généralisation et l'instantiation
+Contrairement à un langage tel qu'OCaml, la généralisation et l'instanciation
 des valeurs polymorphes sont marquées explicitement. Si un tel langage devait
 être utilisé dans le compilateur, c'est lors de la traduction que celles-ci
 seraient ajoutées par le \emph{front-end}.
@@ -155,18 +155,28 @@ ne peut arriver à l'exécution.
 
 \subsubsection{Constructeurs de types}
 
-% TODO Phi, ar, dom
-\begin{align*}
-  \syn{\rho} k \rightarrow C, \vec{\ty} \,;\, \rho
-  \synor \ldots
-  \synor \emptyset
-\end{align*}
+Soit $\epsilon$ l'ensemble des noms des constructeurs de types.
+Sur cet ensemble sont définis les opérations suivantes:
+\begin{description}
+  \item[$ar(\epsilon)$] Associe à un nom de type le nombre de paramètres dont il
+    dépend.
+  \item[$dom(\dtype)$] Retourne l'ensemble des étiquettes que peuvent posséder
+    les termes de types $\dtype$.
+  \item[$Phi(\dtype, k, \var)$] Associe à une instance d'un type
+    l'ensemble des contraintes à introduire dans l'environnement si l'on
+    découvre que la variable $\var : \dtype$ a l'étiquette $k$.
+  \item[$fields(\dtype,k)$] Retourne le vecteur des types des paramètres des
+    valeurs du type $\dtype$ ayant l'étiquette $k$. Si le vecteur est vide,
+     il n'y a qu'une seule valeur de ce type avec cette étiquette,
+     c'est l'entier $k$.
+\end{description}
 
-Soit $\epsilon$ l'ensemble des noms des constructeurs de types. \\
-On suppose l'existence d'une fonction 
-$\delta : \epsilon \times \vec{\ty} \to \rho$.
+On suppose de plus l'existence d'un type nommé \emph{int} dont les valeurs sont
+les entiers naturels.
 
-\todo{Meta constructeurs : IsInt, IsOut, Lt, Eq}
+Enfin, pour chaque type de l'utilisateur on construit un ensemble de types
+dérivés de la définition de ce type. Les éléments de cet ensemble sont décrits
+dans la section \ref{metaconstr}.
 
 \subsubsection{Algèbre de type}
 
@@ -600,7 +610,7 @@ Règles de typage usuelles du lambda-calcul:
   \item Le corps d'une abstraction est typé sous un contexte augmenté du nom et
     du type liés. Le tout a un type flèche, dont le domaine est le type de
     l'argument et le codomaine celui du corps.
-  \item Seule une abstraction peut être appliquer, et le domaine de
+  \item Seule une abstraction peut être appliquée, et le domaine de
     l'abstraction et le type de l'argument doivent coïncider.
 \end{itemize}
 
@@ -687,7 +697,7 @@ Pour typer les branches, on ajoute depuis la construction $\kw{switch}$
 la variable testée et le type de données auquel elle est liée dans le contexte
 de typage des branches. Puis on poursuit par le typage des branches. 
 
-\paragraph{Cas étiquetté} Le test d'une étiquette restreint la valeur
+\paragraph{Cas étiqueté} Le test d'une étiquette restreint la valeur
 d'une étiquette par le biais des contraintes pour typer le corps de la branche
 en cas de succès, ou bien exclue cette valeur de l'ensemble des étiquettes pour
 typer le reste des branches.
@@ -696,13 +706,13 @@ En cas de succès, les contraintes propres à cette étiquette du type de donné
 sont introduites avant de poursuivre le typage du corps (elles sont extraites
 \emph{via} la fonction $\Phi$).
 
-\paragraph{Cas par défaut} Si aucune branche n'a réussit, un cas par défaut
-doit être fourni. Son typage est plus simple, en particulier il n'est fait pas
-usage de $\var$ ni de $\dtype$
+\paragraph{Cas par défaut} Si aucune branche n'a réussie, un cas par défaut
+doit être fourni. Son typage est plus simple, en particulier il n'est pas fait
+usage de $\var$ ni de $\dtype$.
 
 \paragraph{Absence de cas par défaut} Si l'on peut déduire $\bot$ des
 contraintes, c'est que la branche actuelle fait partie du code mort; tous les
-étiquettes possibles ont été écartées avant.
+étiquettes possibles ont été traitées avant.
 
 \begin{mathpar}
 %
@@ -745,7 +755,7 @@ servent à montrer la correction du système de type.
 Lors de la réduction de $\kw{unpack}$, les variables introduites vont être
 substituées. Or les règles de typage de $\kw{switch}$ font référence à ces
 variables singletons. Durant cette réduction, la valeur exacte des étiquettes
-est connu : les règles ci-dessus permettent de prouver que si l'on connaît
+est connue : les règles ci-dessus permettent de prouver que si l'on connaît
 cette valeur, il est possible de réécrire la dérivation de typage sans utiliser
 de types dépendants.
 
@@ -816,11 +826,12 @@ l'arité et les types des arguments correspondent à la définition du type.
 }\rname{T-isout}
 \end{mathpar}
 %
-Ces quatres primitives sont typées par la construction d'un booléen
+Ces quatre primitives sont typées par la construction d'un booléen
 introduisant des contraintes dans l'environnement.
 
 Leur comportement exact dépend donc de la définition des \emph{méta-constructeurs}.
 
+\label{metaconstr}
 \paragraph{$\kw{IsInt}(x,{\dtype})$} est généré en séparant en deux
 sous-ensembles les étiquettes de $\dtype$ : $S_1$ pour les constructeurs
 constants ($\forall s \in S_1 \, ar(\dtype,s) = 0$) et $S_0$ pour les
@@ -1181,7 +1192,8 @@ $$\tycheck{\tyenv \{ \var \leftarrow \val \}, \csenv \{ \var \leftarrow \val \} 
 \textsc{T-Switch} permet alors de conclure.
 
 \paragraph{Remarques} La méthode de preuve semble bonne, mais la preuve est
-  incomplète et le cadre formel pour l'exprimer correctement insuffisant.
+  incomplète et le cadre formel pour l'exprimer correctement n'est pas assez
+  développé.
 
 \end{proof}
 \end{lemma}

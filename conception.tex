@@ -2,7 +2,7 @@
 
 \subsection{Séparer extraction et analyse d'un \emph{tag}}
 
-La principale contribution réside entre la séparation du calcul d'un tag et du
+La principale subtilité réside entre la séparation du calcul d'un tag et du
 branchement qui s'ensuivra.
 
 \paragraph{Filtrage de motif} Le \emph{filtrage de motif} est la construction
@@ -27,7 +27,7 @@ de tests, les \emph{switch} et \emph{if} que l'on retrouve dans les langages
 impératifs classiques. Une forme spécialisée de branchement proche du
 \emph{goto} est aussi proposée pour factoriser le code des branches.
 
-Les filtrages de haut-niveau sont ainsi traduits via des arbres de décisions,
+Les filtrages de haut niveau sont ainsi traduits via des arbres de décisions,
 au travers d'une suite de tests et de tables de sauts.  Le lien entre la
 sélection d'une branche et les hypothèses qui y ont amené disparaît -- le
 compilateur ne peut que suivre les instructions de projection sous l'hypothèse
@@ -58,4 +58,4 @@ primitive \emph{field}, sont impossibles à vérifier.
 
 Notre travail sur \emph{Lambda} vise à justifier la compilation de ces motifs ;
 pour cela il faudra être capable de corréler statiquement la valeur d'un tag et
-le type de la valeur \emph{taguée}.
+le type de la valeur \emph{étiquetée}.

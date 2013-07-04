@@ -14,7 +14,7 @@ Si le système de type d'OCaml permet de dire que les programmes bien typés ne
 peuvent causer d'erreurs d'exécutions, les exceptions viennent affaiblir cette
 affirmation.  Une exception non rattrapée causera l'arrêt d'un programme comme
 aurait pu le faire une erreur d'exécution.  Pour garantir des programmes sûrs,
-il est d'usage de se priver des exceptions.  L'analyse statique que nous
+il est donc d'usage de se priver des exceptions.  L'analyse statique que nous
 souhaitions effectuer visait à vérifier de manière mécanique l'absence
 d'exceptions ou bien l'exhaustivité de leur traitement dans un code source.
 
@@ -38,7 +38,7 @@ compilateur OCaml : \emph{Lambda}, le premier après le \emph{front-end}.
 Cibler \emph{Lambda} apporte de nombreux avantages par rapport à un travail sur
 la syntaxe abstraite, notamment :
 \begin{description}
-  \item[Indépendance vis-à-vis du \emph{front-end}.] Si le langage de surface
+  \item[Indépendance vis-à-vis du \emph{front-end}.] Si le langage de surface 
     OCaml est régulièrement étendu, \emph{Lambda} est très stable et n'a pas
     connu de changements majeurs depuis l'introduction du système objet il y a
     plus de 10 ans. C'est une cible pérenne.
@@ -66,7 +66,7 @@ Ces avantages s'accompagnent des inconvénients suivants :
 
 Ce choix restreint les traitements possibles dans la suite de la compilation.
 Le compilateur natif tente par exemple de réinférer des types dans le cadre de
-certaines optimisations, mais il ne s'agit que d'approximation conservative.
+certaines optimisations, mais il ne s'agit que d'approximation conservatrice.
 Dans notre cas analyser le flot est beaucoup plus compliqué sans type.
 % TODO: documenter effet latents
 
@@ -74,7 +74,7 @@ Concevoir une version de \emph{Lambda} préservant les types semble donc être u
 prérequis pour un outil d'analyse viable.
 
 \paragraph{Remarques} Le choix de l'effacement des types est justifié par
-l'omniprésence du polymorphisme paramétrique dans le langage Ocaml et de la
+l'omniprésence du polymorphisme paramétrique dans le langage OCaml et de la
 représentation très régulière des valeurs à l'exécution.
 
 Le polymorphisme paramétrique permet de garantir qu'un programme bien typé est
@@ -92,10 +92,10 @@ Le lambda-calcul, introduit par Church désigne une famille de langage de
 programmation fonctionnelle reposant autour d'un unique mécanisme substitution.
 Cela rend sa définition simplissime, le noyau syntaxique tient en trois règles :
 $$t ::= x | \lambda x . t | t \, t$$
-La variable $x$, l'abstraction d'un terme par rapport à une variable et enfin
+L'occurence d'une variable ; l'abstraction d'un terme par rapport à une variable ;
 l'application d'un terme à un autre.
 Mais derrière cette concision se cache une très grande expressivité : c'est un
-langage turing-complet et d'un suffisamment haut-niveau pour permettre un
+langage turing-complet et d'un suffisamment haut niveau pour permettre un
 codage léger des constructions classiques des langages de programmation
 \cite{Landin}.
 
@@ -114,6 +114,7 @@ invariants. Le programme reste bien typé une fois exprimé dans un langage de
 plus bas-niveau ou, inversement, une traduction erronée pourra être détectée
 mécaniquement.
 
+Plusieurs approches ont été étudiées pour la compilation typée.
 \cite{MorrisettWCG99} propose un schéma de compilation typé depuis un
 lambda-calcul vers un assembleur spécifique.
 

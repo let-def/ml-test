@@ -1,0 +1,52 @@
+\documentclass[12pt]{article}
+\usepackage{mathpartir}
+\usepackage[fleqn]{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{multicol}
+\usepackage[utf8x]{inputenc}
+\usepackage[french]{babel}
+\usepackage{graphicx}
+\usepackage[parfill]{parskip}
+\usepackage{listings}
+%\usepackage[margin=1.5in]{geometry}
+
+\begin{document}
+\pagestyle{empty}
+
+\section*{Problème étudié}
+Le langage OCaml propose différentes fonctionnalités assistant le programmeur
+dans l'écriture de programmes robustes. Parmi celles-ci, le filtrage de motif
+permet de s'assurer qu'aucun n'est oublié dans le traitement de données et que
+l'on ne fait pas référence à des composantes indéfinies (un parallèle avec le
+langage C serait la possibilité de garantir l'absence de déréférencement de
+pointeurs nuls dans les valeurs manipulées par le code).
+
+Toutes ces vérifications sont effectuées durant la phase de typage, puis les
+informations nécessaires à ces analyses sont effacées : le langage source est
+traduit en un langage intermédiaire non-typé, \emph{Lambda}. Conserver les
+informations de typage dans la suite de la chaîne de compilation aurait
+cependant plusieurs avantages : optimisations dirigées par les types,
+opportunités d'analyses statiques, vérification de la correction des passes de
+transformations de code, \emph{etc}.
+
+Toutefois les motifs sont traduits très tôt en arbres de décisions --
+séquences de \emph{if} et de \emph{switch}. Nous ne savons pas comment
+conserver ou retrouver les informations issues du système de type dans cette
+représentation de bas-niveau. C'est un pré-requis pour pouvoir faire de la
+compilation typée sans changer le langage intermédiaire et donc l'architecture
+du compilateur.
+
+\section*{Solution proposée}
+À partir d'une variante minimaliste du langage \emph{Lambda} conçue autour de
+ces constructions problématiques, nous avons développé un système de type dans
+lequel il est possible d'encoder les propriétés garanties par le filtrage de
+motif d'OCaml.
+
+Notre travail introduit une forme simple de \emph{dépendance} dans le système
+de type : les types peuvent faire référence à des identificateurs de termes.
+Cela permet de faire un lien entre des tests effectués à l'exécution sur des
+valeurs et les informations que l'on peut apprendre statiquement sur le type
+de ces valeurs.
+
+\end{document}

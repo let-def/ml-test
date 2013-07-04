@@ -10,7 +10,7 @@
 Les extensions ont été conçues autour de la représentation des valeurs par
 OCaml. Les valeurs concrètes sont :
 \begin{itemize}
-  \item soit des entiers, directement représenté par un scalaire,
+  \item soit des entiers, directement représentés par un scalaire,
   \item soit des blocs représentés par un pointeur vers une
 zone mémoire composée d'une étiquette et d'un vecteur de valeurs.
 \end{itemize}
@@ -24,13 +24,13 @@ Un bit des valeurs est réservé pour distinguer les entiers des pointeurs.
 
 \paragraph{Types algébriques}
 
-La spécificité de ML qui marque sans doute le plus ceux qui aprennent ce langage
+La spécificité de ML qui marque sans doute le plus ceux qui apprennent ce langage
 sont les \emph{types sommes}. Les types de cette forme ont plusieurs
 constructeurs de valeurs.
 
 Ce comportement rappelle les \emph{union}s du C, mais les constructeurs des
 types sommes sont disjoints : une fois construit, on peut retrouver sans
-ambiguité le constructeur qui a engendré une valeur. Enfin, ces constructeurs
+ambiguïté le constructeur qui a engendré une valeur. Enfin, ces constructeurs
 peuvent recevoir des paramètres. 
 
 \begin{lstlisting}
@@ -125,10 +125,10 @@ système de type structurel.
 \end{align*}
 
 Le typage des valeurs récursives est délicat avec un système structurel. Cela
-conduit usuellement à une définition de la récursion dite "équirecursive" : un
-type est égale à sa version développée,
+conduit usuellement à une définition de la récursion dite « équirécursive » :
+un type est égal à sa version développée,
   $\mu X . \tau = [X \leftarrow \mu X . \tau]$.
-Malheureusement, cette formulation s'accompagne de difficulté calculatoire.
+Malheureusement, cette formulation s'accompagne de difficultés calculatoires.
 
 Sans surprise, seulement un sous-ensemble d'OCaml pouvait se traduire dans un
 système structurel. Voici un exemple de type qui pose problème avec un tel
@@ -144,7 +144,7 @@ version structurelle, le typage devenant en général indécidable dans de telle
 conditions.
 
 \paragraph{Système de type nominal s'inspirant de System $F_c$.}
-Les systèmes de type nominatifs sont la solution classique au problème
+Les systèmes de type nominaux sont la solution classique au problème
 mentionné ci-dessus. 
 
 Un nom $\epsilon$ est introduit par une définition de la forme $\epsilon
@@ -156,31 +156,62 @@ et son développement.  Cette définition de la récursion est appelée
 
 Le système de type d'OCaml est lui-même nominal.
 
-\subsection{Typage sous contraintes}
+\subsection{Séparer extraction et analyse d'une étiquette}
 
-La principale difficulté dans le typage de \emph{lambda} est de raffiner le
-contexte en fonction des branches suivies.  Plusieurs pistes ont été suivies.
+Le \emph{filtrage de motif} est la construction qui permet l'analyse des
+valeurs de types sommes pour sélectionner une branche d'exécution.
 
-Ce type d'analyse peut se faire par une forme restreinte de typage dépendant.
-Dans le typage dépendant, les valeurs peuvent intervenir dans les types. Ces
-systèmes de type apporte une très grande expressivité au prix de complications
-lors de la vérification des types. 
+Les différents constructeurs d'un type algébrique mènent chacun à une branche
+différente. Dans chacune, des noms liés aux paramètres du constructeur testé
+sont introduits. Le programmeur n'indique jamais explicitement l'accès aux
+champs d'une valeur. Il ne peut même pas nommer un champ en dehors de la
+branche.
 
-\cite{LambdaCube} propose une classification des systèmes de types dépendants en
-fonction de l'ajout en expressivité au lambda-calcul simplement typé.
+Il est alors simple de vérifier l'exhaustivité du traitement et de garantir
+l'absence d'accès à des composantes inexistantes lors de l'exécution. Enfin le
+compilateur se voit offrir beaucoup de libertés pour générer du code efficace;
+différentes méthodes sont étudiées dans \cite{LeFessant:2001:OPM:507669.507641}
+puis \cite{Maranget:2008:CPM:1411304.1411311}.
 
-Nous n'introduisons ici qu'une simple dépendance entre type et identificateurs
-de termes. Un système similaire a été étudié  dans \cite{Odersky02anominal} sous
-le nom de "path-dependent types".
+\paragraph{Motifs compilés} Le compilateur OCaml choisit de compiler ces motifs
+très tôt. Dans le langage \emph{Lambda} il n'existe déjà plus que deux formes
+de tests, les \emph{switch} et \emph{if} que l'on retrouve dans les langages
+impératifs classiques. Une forme spécialisée de branchement proche du
+\emph{goto} est aussi proposée pour factoriser le code des branches.
+
+Les filtrages de haut niveau sont ainsi traduits via des arbres de décisions,
+au travers d'une suite de tests et de tables de sauts.  Le lien entre la
+sélection d'une branche et les hypothèses qui y ont amené disparaît -- le
+compilateur ne peut que suivre les instructions de projection sous l'hypothèse
+que le code traduit est correct.
+
+\subsubsection{Typage dépendant}
+
+Le type d'un terme permet habituellement de connaître une approximation de
+l'ensemble des valeurs vers lesquelles celui-ci va s'évaluer. Dans le problème
+que nous traitons, l'ensemble des valeurs que peut occuper un terme dépend son
+étiquette. Or, l'étiquette est elle-même un terme : le type d'une valeur peut
+ainsi dépendre d'une autre valeur.
+
+Cette relation plus fine que ce que cherche à capturer les systèmes de types
+classiques est étudiée dans les systèmes de types \emph{dépendants}.
+\cite{LambdaCube} propose une classification des systèmes de types dépendants
+en fonction des différents axes d'augmentation de l'expressivité.
+
+Dans notre cas, une forme restreinte de typage dépendant suffit : des types à
+habitant unique dans lesquels la seule forme de dépendance est une référence à
+un identificateur de termes.
+Un système similaire a été étudié  dans \cite{Odersky02anominal} sous le nom de
+"path-dependent types".
 
 \paragraph{Types à habitant unique.}
 Les types habités par une seule valeur, ou \emph{types singleton}, sont une
-fonctionalité essentielle pour raffiner un type dans une branche.
-Cette garantie d'unicité permet, après le test d'une valeur, de s'assurer que
-son type est localement plus fin. 
+fonctionnalité essentielle pour raffiner un type dans une branche.
+Cette garantie d'unicité permet, après le test d'une valeur, de faire le lien
+entre le résultat de ce test et le raffinement de son type.
 
-Si le type était partagé par plusieurs valeurs potentiellement différente, il
-serait possible d'introduire des incohérences dans le contexte.
+Une fois le branchement effectué, cette information est ensuite propagée dans
+le contexte par un système de contrainte. Les contraintes et les types sont
+maintenus séparément dans le contexte, mais les règles de typages peuvent être
+guidés par les contraintes impliquées par le contexte actuel.
 
-Une fois le branchement effectué, cette information est ensuite propagée dans le
-contexte par un système de contrainte.

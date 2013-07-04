@@ -67,6 +67,9 @@ Inductive tm : Type :=
   | tABS : Id.t ty -> tm -> tm
   | tAPP : tm -> ty -> tm.
 
+Inductive ki : Type :=
+  | KStar : ki.
+
 Definition x := (Id.Id tm 0).
 Definition y := (Id.Id tm 1).
 Definition z := (Id.Id tm 2).
@@ -182,180 +185,154 @@ Qed.
 
 Module Context.
 
-Inductive binding :=
-  | TmVar  : Id.t tm -> ty -> binding
-  | TyFree : Id.t ty -> binding.
+Inductive binding : Type :=
+  | Tm : Id.t tm -> ty -> binding
+  | Ty : Id.t ty -> ki -> binding.
 
 Definition t := list binding.
 
 Definition empty : t := nil.
-(*Inductive unbound : forall A : Type, Id.t A -> t -> Prop :=
-  | U_Empty : forall A id, unbound A id empty
-  | U_TmVar : forall id1 id2 ty' ct,
-      id1 <> id2 ->
-      unbound tm id1 ct ->
-      unbound tm id1 (TmVar id2 ty' :: ct)
-  | U_TmStep : forall id1 id2 ct,
-      unbound tm id1 ct ->
-      unbound tm id1 (TyFree id2 :: ct)
-  | U_TyFree : forall id1 id2 ct,
-      id1 <> id2 ->
-      unbound ty id1 ct ->
-      unbound ty id1 (TyFree id2 :: ct)
-  | U_TyStep : forall id1 id2 ty' ct,
-      unbound ty id1 ct ->
-      unbound ty id1 (TmVar id2 ty' :: ct).
 
-Inductive bound_tm : Id.t tm -> ty -> t -> Prop :=
-  | B_TmVar : forall id ty' ctx,
-      unbound tm id ctx ->
-      bound_tm id ty' (TmVar id ty' :: ctx)
-  | B_TmStepTm : forall id1 ty1 id2 ty2 ctx,
-      bound_tm id1 ty1 ctx ->
-      id1 <> id2 ->
-      bound_tm id1 ty1 (TmVar id2 ty2 :: ctx)
-  | B_TmStepTy : forall id1 ty1 id2 ctx,
-      bound_tm id1 ty1 ctx ->
-      bound_tm id1 ty1 (TyFree id2 :: ctx).
+Definition extend (G : t) b : t := b :: G.
 
-Inductive bound_ty : Id.t ty -> t -> Prop :=
-  | B_TyFree : forall id ctx,
-      unbound ty id ctx ->
-      bound_ty id (TyFree id :: ctx)
-  | B_TyStepTy : forall id1 id2 ctx,
-      bound_ty id1 ctx ->
-      id1 <> id2 ->
-      bound_ty id1 (TyFree id2 :: ctx)
-  | B_TyStepTm : forall id1 id2 ty2 ctx,
-      bound_ty id1 ctx ->
-      bound_ty id1 (TmVar id2 ty2 :: ctx).*)
-
-Definition extend (G : t) (b : binding) := b :: G.
-Definition bind_tm (G : t) x T := (TmVar x T) :: G.
-Definition bind_ty (G : t) x := (TyFree x) :: G.
-
-(*Lemma extend_eq : forall (ctxt: context) x T,
-  (extend ctxt x T) x = T.
-Proof.
-  intros.
-  destruct x0.
-  unfold extend; unfold beq_id; simpl.
-  rewrite <- beq_nat_refl.
-  auto.
-Qed.
-
-Lemma extend_neq : forall (ctxt : context) x1 T x2,
-  beq_id x2 x1 = false ->
-  (extend ctxt x2 T) x1 = ctxt x1.
-Proof.
-  intros.
-  unfold extend. rewrite H. auto.
-Qed.
-
-Lemma extend_shadow : forall (ctxt: context) x T1 T2,
-  (extend (extend ctxt x T1) x T2) = (extend ctxt x T2).
-Proof.
-  intros.
-  extensionality x.
-  unfold extend.
-  destruct (beq_id x0 x); auto.
-Qed.
-
-Lemma extend_commute : forall (ctxt : context) x1 x2 T1 T2,
-  x1 <> x2 ->
-  (extend (extend ctxt x1 T1) x2 T2) = (extend (extend ctxt x2 T2) x1 T1).
-Proof.
-  intros.
-  extensionality x.
-  unfold extend.
-  remember (beq_id x2 x) as x2x.
-  remember (beq_id x1 x) as x1x.
-  destruct x2x.
-  destruct x1x; subst.
-  + apply beq_id_eq in Heqx2x.
-    apply beq_id_eq in Heqx1x.
-    subst. exfalso.
-    apply H. auto.
-  + auto.
-  + auto.
-Qed.*)
+Definition bound_tm (G : t) (x : Id.t tm) := exists T, In (Tm x T) G.
+Definition bound_ty (G : t) (X : Id.t ty) := exists K, In (Ty X K) G.
 
 Inductive wf : t -> Prop := 
   | wf_empty : wf empty
-  | wf_tmvar : forall id T ctxt,
-      ~ (exists T', In (TmVar id T') ctxt) -> 
-      wf ctxt -> wf (TmVar id T :: ctxt)
-  | wf_tyfree : forall id ctxt,
-      ~ In (TyFree id) ctxt ->
-      wf ctxt -> wf (TyFree id :: ctxt).
+  | wf_tm : forall x T G,
+      wf G ->
+      ~ bound_tm G x ->
+      wf (extend G (Tm x T))
+  | wf_ty : forall X K G,
+      wf G ->
+      ~ bound_ty G X ->
+      wf (extend G (Ty X K)).
 
 End Context.
 
-Inductive appears_free_in : Id.t tm -> tm -> Prop :=
-  | afi_var : forall x,
-      appears_free_in x (tvar x)
-  | afi_app1 : forall x t1 t2,
-      appears_free_in x t1 -> appears_free_in x (tapp t1 t2)
-  | afi_app2 : forall x t1 t2,
-      appears_free_in x t2 -> appears_free_in x (tapp t1 t2)
-  | afi_abs1 : forall x y T11 t12,
-      y <> x ->
-      appears_free_in x t12 ->
-      appears_free_in x (tabs y T11 t12)
-  | afi_APP1 : forall x t T,
-      appears_free_in x t ->
-      appears_free_in x (tAPP t T)
-  | afi_ABS : forall x X t,
-      appears_free_in x t ->
-      appears_free_in x (tABS X t).
-
-Definition closed (t:tm) :=
-  forall x, ~ appears_free_in x t.
+Inductive has_kind : Context.t -> ty -> ki -> Prop :=
+  | K_Var : forall G X K,
+      Context.wf G ->
+      Context.bound_ty G X ->
+      has_kind G (TVar X) K
+  | K_Arrow : forall G T1 T2,
+      has_kind G T1 KStar ->
+      has_kind G T2 KStar ->
+      has_kind G (TArrow T1 T2) KStar
+  | K_Forall : forall G X T,
+      has_kind (Context.extend G (Context.Ty X KStar)) T KStar ->
+      has_kind G (TForall X T) KStar.
+    
+Lemma has_kind_wf_context (G : Context.t) (T : ty) :
+  has_kind G T KStar -> Context.wf G.
+Proof.
+  intro H.
+  induction H.
+  - assumption.
+  - assumption.
+  - inversion IHhas_kind.
+    assumption.
+Qed.
 
 Inductive wf_type : Context.t -> ty -> Prop :=
   | WF_Var : forall G X,
-      In (Context.TyFree X) G ->
+      Context.wf G ->
+      Context.bound_ty G X ->
       wf_type G (TVar X)
   | WF_Arrow : forall G T1 T2,
       wf_type G T1 ->
       wf_type G T2 ->
       wf_type G (TArrow T1 T2)
   | WF_Forall : forall G X T,
-      wf_type (Context.bind_ty G X) T ->
+      wf_type (Context.extend G (Context.Ty X KStar)) T ->
       wf_type G (TForall X T).
+
+Theorem has_kind_wf_type G T : has_kind G T KStar -> wf_type G T.
+Proof.
+  intro H.
+  induction H;
+    constructor; auto.
+Qed.
+
+Example wf_type_has_kind G T : wf_type G T -> has_kind G T KStar.
+Proof.
+  intro H.
+  induction H;
+    constructor; auto.
+Qed.
+
+Theorem wf_type_wf_context G T : wf_type G T -> Context.wf G.
+Proof with auto.
+  intro H.
+  induction H...
+
+  inversion IHwf_type...
+Qed.
 
 Inductive has_type : Context.t -> tm -> ty -> Prop :=
   | T_Var : forall G x T,
-      Context.wf G -> wf_type G T ->
-      In (Context.TmVar x T) G ->
+      wf_type G T ->
+      In (Context.Tm x T) G ->
       has_type G (tvar x) T
-  | T_Abs : forall x G T11 T12 t12,
-      has_type (Context.bind_tm G x T11) t12 T12 ->
-      has_type G (tabs x T11 t12) (TArrow T11 T12)
-  | T_App : forall G T11 T12 t1 t2,
-      has_type G t1 (TArrow T11 T12) ->
-      has_type G t2 T11 ->
-      has_type G (tapp t1 t2) T12
+  | T_Abs : forall x G TA TB tb,
+      has_type (Context.extend G (Context.Tm x TA)) tb TB ->
+      has_type G (tabs x TA tb) (TArrow TA TB)
+  | T_App : forall G TA TB tab ta,
+      has_type G tab (TArrow TA TB) ->
+      has_type G ta TA ->
+      has_type G (tapp tab ta) TB
   | T_ABS : forall X G T body,
-      has_type (Context.bind_ty G X) body T ->
+      has_type (Context.extend G (Context.Ty X KStar)) body T ->
       has_type G (tABS X body) (TForall X T)
   | T_APP : forall X G body T T',
       has_type G body (TForall X T) ->
       wf_type G T' ->
       has_type G (tAPP body T') (subst_ty X T' T).
-
-Theorem wf_context G t T : has_type G t T -> Context.wf G.
+      
+Theorem has_type_wf_context G t T : has_type G t T -> Context.wf G.
 Proof with auto.
   intro H.
   induction H...
-  - inversion IHhas_type...
-  - inversion IHhas_type...
+  - (* T_Var *)
+    apply wf_type_wf_context with (T := T)...
+  - (* T_abs *)
+    inversion IHhas_type...
+  - (* T_ABS *)
+    inversion IHhas_type...
 Qed.
 
-Theorem progress G t T :
-  closed t -> has_type G t T ->
+Theorem progress t :
+  (exists T, has_type Context.empty t T) ->
   value t \/ exists t', t ==> t'. 
 Proof with (try constructor; eauto).
+  intro H.
+  induction t; destruct H as [T].
+  
+  - (* tvar *)
+    inversion H; inversion H3.
+  - (* tapp *)
+    right.
+    inversion H; subst.
+    destruct IHt1; eauto.
+    destruct IHt2; eauto.
+
+    + (* value t1, value t2 *)
+      inversion H3; subst;
+        try solve by inversion.
+      exists (tb [ x0 <- t2 ])...
+    + (* value t1, t2 ==> t2' *) 
+      destruct H1 as [t2'].
+      exists (tapp t1 t2')...
+    + (* t1 ==> t1' *)
+      destruct H0 as [t1'].
+      exists (tapp t1' t2)...
+
+  - (* tabs *)
+    left...
+
+  - (* tABS X t : value iff value t *)
+      
   intros Hcl Ht.
   induction Ht; intros.
   - unfold closed in Hcl.

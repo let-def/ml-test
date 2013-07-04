@@ -1,27 +1,37 @@
 \section{Conclusion}
 
 Le sujet qui a finalement été traité dans ce TRE était inattendu et s'est
-imposé naturellement après plusieurs avoir expérimenter plusieurs pistes autour
-de l'analyse statique.
+imposé naturellement après avoir expérimenter plusieurs pistes autour de
+l'analyse statique.
 
-\paragraph{Résultats de la recherche}
-Les résultats obtenus, bien qu'incomplets dans l'état actuel, sont très
-encourageants. De nombreux prototypes ont été développés en parallèle du projet
-et ont permis de mettre en évidence des difficultés calculatoires avec les
-algorithmes impliqués et également des insuffisances du système de type pour
-couvrir correctement le code généré par le compilateur OCaml.
+\paragraph{Résultats de la recherche} Les résultats obtenus, bien qu'incomplets
+, sont très encourageants. De nombreux prototypes ont été développés en
+parallèle du projet et ont permis de mettre en évidence des difficultés
+calculatoires avec les algorithmes impliqués et également des insuffisances du
+système de type pour couvrir correctement le code généré par le compilateur
+OCaml.
 
-Par ailleurs, un cas n'est toujours pas couvert par le système de type proposé :
-le décalage des étiquettes par une constante utilisé pour simplifier certains
-branchements.
-Une version précédente du système de types prenait en charge ce
-cas, mais celui-ci a été simplifié pour rendre la formalisation plus
-accessible.
+Un cas n'est toujours pas couvert par le système de type proposé : le décalage
+des étiquettes par une constante utilisé pour simplifier certains tests.
+Une version précédente du système de types prenait en charge ce cas, mais
+ce dernier a été simplifié pour rendre la formalisation plus accessible.
 
 Malgré cela, la quantité de travail et de technique qui sépare une version
 pratique d'une version formelle et prouvée ne m'a pas permis de mener à terme
 cette étude.  Par manque de temps la preuve du système actuel reste donc très
 incomplète, mais les résultats intermédiaires laissent à penser que la piste
-suivie devrait aboutir à une solution au problème évoqué.
+suivie devrait aboutir à une solution au problème considéré.
 
-\paragraph{Apprentissage personnel}
+En parallèle de ce travail manuel, un début de formalisation à l'aide de
+\emph{Coq} a été entrepris, en suivant le cours \emph{"Software Foundations"}
+de Pierce. L'objet de ce rapport pourrait donc être poursuivi, notamment en
+apportant une preuve formelle du système de type puis une implantation
+certifiée du typeur.
+
+\paragraph{Apprentissage personnel} Dans un premier temps découvrir
+l'architecture du compilateur OCaml a été une expérience stimulante en tant que
+telle. Mais c'est surtout le travail avec des outils rigoureux et bien établis
+de la théorie des langages de programmation -- par ordre de découverte,
+\mbox{Système-F}, la méta-théorie d'un langage et enfin son implantation en
+\emph{Coq} -- qui a constitué la partie la plus enrichissante de ce projet de
+recherche.
